@@ -1,0 +1,413 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report a Civic Problem — Civics Smart</title>
+    <meta name="description" content="Report damaged roads, garbage overflow, water leakages, broken street lights, or other civic problems to municipal authorities.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z' fill='%23641F32'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23641F32'/%3E%3Cpath d='M16 8v4M16 20v4' stroke='%23641F32' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/pages.css">
+    <link rel="stylesheet" href="css/forms.css">
+</head>
+<body>
+
+    <!-- ═══════════════ MOBILE TOPBAR ═══════════════ -->
+    <header class="mobile-topbar" aria-label="Mobile Navigation Bar">
+        <button class="mobile-toggle" id="sidebarToggleBtn" aria-label="Open Navigation" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <a href="index.html" class="mobile-brand" aria-label="Civics Smart Home">
+            <svg class="mobile-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span class="mobile-brand-name">Civics Smart</span>
+        </a>
+        <a href="report.html" class="mobile-cta-btn" title="Report Issue" aria-label="Report Issue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </a>
+    </header>
+
+    <!-- ═══════════════ SIDEBAR OVERLAY (MOBILE) ═══════════════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
+    <!-- ═══════════════ LEFT SIDEBAR ═══════════════ -->
+    <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Main Navigation">
+        <!-- Brand / Header -->
+        <div class="sidebar__brand">
+            <a href="index.html" class="sidebar__brand-link" aria-label="Civics Smart — Home">
+                <div class="sidebar__logo-wrap">
+                    <svg class="sidebar__logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                        <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                        <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="sidebar__brand-text">
+                    <span class="sidebar__wordmark">CIVICS SMART</span>
+                    <span class="sidebar__tagline">CIVIC ACTION PLATFORM</span>
+                </div>
+            </a>
+            <button class="sidebar__collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse navigation" aria-expanded="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+
+            <button class="sidebar__close-btn" id="sidebarCloseBtn" aria-label="Close navigation">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="sidebar__body">
+            <div class="sidebar__section-title">Menu</div>
+            <nav class="sidebar__nav" aria-label="Platform Links">
+                <a href="index.html" class="sidebar__link" data-tooltip="Home">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Home</span>
+                </a>
+
+                <a href="report.html" class="sidebar__link active" aria-current="page" data-tooltip="Report Issue">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Report Issue</span>
+                </a>
+
+                <a href="track.html" class="sidebar__link" data-tooltip="Track Complaint">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <span>Track Complaint</span>
+                </a>
+
+                <a href="my-complaints.html" class="sidebar__link" data-tooltip="My Complaints">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>My Complaints</span>
+                </a>
+
+                <a href="index.html#how-it-works" class="sidebar__link" data-tooltip="How It Works">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                    <span>How It Works</span>
+                </a>
+
+                <a href="admin.html" class="sidebar__link" data-tooltip="Authority">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Authority</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Divider -->
+        <div class="sidebar__divider"></div>
+
+        <!-- Footer Actions -->
+        <div class="sidebar__footer">
+            <a href="login.html" class="sidebar__login-link" data-tooltip="Login">
+                <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                <span>Login</span>
+            </a>
+
+            <a href="report.html" class="sidebar__cta-btn" data-tooltip="Report a Problem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>REPORT A PROBLEM</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN CONTENT WRAPPER ═══════════════ -->
+    <div class="page-wrapper">
+
+
+    <!-- ═══════════════ PAGE HEADER ═══════════════ -->
+    <header class="page-header">
+        <div class="page-header__inner">
+            <nav class="page-header__breadcrumb" aria-label="Breadcrumb">
+                <a href="index.html">Home</a>
+                <span aria-hidden="true">&bull;</span>
+                <span>Report Issue</span>
+            </nav>
+            <h1 class="page-header__title">Report a Civic Problem</h1>
+            <p class="page-header__desc">
+                Submit an issue in your neighborhood. Our smart engine groups duplicates, assigns priority, and routes it to the designated department.
+            </p>
+        </div>
+    </header>
+
+    <!-- ═══════════════ FORM SECTION ═══════════════ -->
+    <main class="page-body">
+        <div class="container container--narrow">
+            <form id="reportForm" class="form-card" novalidate>
+                
+                <!-- Category & Ward -->
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="category" class="form-label">Category <span class="required">*</span></label>
+                        <select id="category" name="category" class="form-select" required>
+                            <option value="" disabled selected>Select civic category</option>
+                            <option value="Roads">Damaged Road / Pothole</option>
+                            <option value="Water">Water Supply / Pipe Leakage</option>
+                            <option value="Waste">Garbage Overflow / Sanitation</option>
+                            <option value="Lighting">Broken Street Light</option>
+                            <option value="Drainage">Clogged Drain / Sewer Overflow</option>
+                            <option value="Electricity">Exposed Cable / Transformer Issue</option>
+                            <option value="Other">Other Public Infrastructure</option>
+                        </select>
+                        <span class="form-hint">Helps route directly to the responsible municipal team.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ward" class="form-label">Municipal Ward / Zone</label>
+                        <select id="ward" name="ward" class="form-select">
+                            <option value="Central Zone - Ward 14">Central Zone — Ward 14</option>
+                            <option value="North Zone - Ward 08">North Zone — Ward 08</option>
+                            <option value="East Zone - Ward 21">East Zone — Ward 21</option>
+                            <option value="South Zone - Ward 05">South Zone — Ward 05</option>
+                            <option value="West Zone - Ward 12">West Zone — Ward 12</option>
+                        </select>
+                        <span class="form-hint">Used for relational index partitioning.</span>
+                    </div>
+                </div>
+
+                <!-- Title -->
+                <div class="form-group">
+                    <label for="title" class="form-label">Complaint Title <span class="required">*</span></label>
+                    <input type="text" id="title" name="title" class="form-input" 
+                           placeholder="e.g., Deep pothole causing traffic jam near Sector 15 market" 
+                           maxlength="100" required>
+                    <span class="form-hint">Concise summary of the civic obstacle.</span>
+                </div>
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label for="description" class="form-label">Detailed Description <span class="required">*</span></label>
+                    <textarea id="description" name="description" class="form-textarea" 
+                              placeholder="Please describe the exact location, visible hazards, approximate duration of the issue, and how it impacts citizens..." 
+                              rows="4" required></textarea>
+                </div>
+
+                <!-- Location -->
+                <div class="form-group">
+                    <label for="location" class="form-label">Specific Location & Landmark <span class="required">*</span></label>
+                    <div class="input-with-action">
+                        <input type="text" id="location" name="location" class="form-input" 
+                               placeholder="e.g., Opposite Gate 3, Community Center, Sector 15" required>
+                        <button type="button" id="detectLocationBtn" class="input-action-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                            Detect
+                        </button>
+                    </div>
+                    <span class="form-hint">Geo-coordinates assist duplicate clustering and field routing.</span>
+                </div>
+
+                <!-- Severity Level -->
+                <div class="form-group">
+                    <label class="form-label">Perceived Severity <span class="required">*</span></label>
+                    <div class="severity-picker">
+                        <label class="severity-option">
+                            <input type="radio" name="severity" value="Low">
+                            <div class="severity-pill">
+                                <span class="severity-pill__title">Low</span>
+                                <span class="severity-pill__desc">Minor cosmetic</span>
+                            </div>
+                        </label>
+                        <label class="severity-option">
+                            <input type="radio" name="severity" value="Medium" checked>
+                            <div class="severity-pill">
+                                <span class="severity-pill__title">Medium</span>
+                                <span class="severity-pill__desc">Inconvenient</span>
+                            </div>
+                        </label>
+                        <label class="severity-option">
+                            <input type="radio" name="severity" value="High">
+                            <div class="severity-pill">
+                                <span class="severity-pill__title">High</span>
+                                <span class="severity-pill__desc">Hazardous</span>
+                            </div>
+                        </label>
+                        <label class="severity-option severity-option--critical">
+                            <input type="radio" name="severity" value="Critical">
+                            <div class="severity-pill">
+                                <span class="severity-pill__title">Critical</span>
+                                <span class="severity-pill__desc">Immediate danger</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Photo Upload Dropzone -->
+                <div class="form-group">
+                    <label class="form-label">Photographic Evidence</label>
+                    <div class="file-dropzone" id="dropzone">
+                        <input type="file" id="photoInput" name="photo" accept="image/*" aria-label="Upload photo proof">
+                        <svg class="file-dropzone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <p class="file-dropzone__text">Drag and drop site photo here, or <span>browse files</span></p>
+                        <span class="form-hint">JPG, PNG or WEBP up to 10MB</span>
+                    </div>
+                    <div class="file-dropzone__preview" id="photoPreview">
+                        <img id="previewImage" src="" alt="Selected civic issue proof">
+                        <div class="file-dropzone__preview-name" id="previewFilename">image.jpg</div>
+                        <button type="button" class="file-dropzone__remove" id="removePhotoBtn">Remove</button>
+                    </div>
+                </div>
+
+                <!-- Citizen details -->
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="citizenName" class="form-label">Your Name</label>
+                        <input type="text" id="citizenName" name="citizenName" class="form-input" 
+                               placeholder="e.g., Tanya Sharma" value="Aarav Mehra">
+                    </div>
+                    <div class="form-group">
+                        <label for="citizenPhone" class="form-label">Phone Number</label>
+                        <input type="tel" id="citizenPhone" name="citizenPhone" class="form-input" 
+                               placeholder="+91 98765 43210" value="+91 98102 44921">
+                        <span class="form-hint">Used strictly for SMS status notifications.</span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Submit and Back -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md);">
+                    <a href="index.html" class="btn btn--ghost">Cancel</a>
+                    <button type="submit" id="submitBtn" class="btn btn--primary btn--lg">
+                        Submit Complaint
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </main>
+
+    <!-- ═══════════════ SUBMISSION SUCCESS MODAL ═══════════════ -->
+    <div id="successModal" style="display: none; position: fixed; inset: 0; background: rgba(40,37,34,0.7); z-index: 200; align-items: center; justify-content: center; padding: var(--space-xl);">
+        <div style="background: var(--ivory); border-radius: var(--radius-xl); max-width: 520px; width: 100%; padding: var(--space-3xl); text-align: center; border: var(--border-thin); box-shadow: var(--shadow-lg);">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(74, 124, 89, 0.12); color: var(--status-resolved); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-lg) auto;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <span class="section-label" style="color: var(--status-resolved);">Complaint Registered</span>
+            <h2 style="font-size: var(--text-3xl); margin-bottom: var(--space-sm);">Report Received</h2>
+            <p style="color: var(--taupe); font-size: var(--text-sm); margin-bottom: var(--space-2xl);">
+                Your complaint has been queued with ID <strong id="assignedComplaintId" style="color: var(--burgundy); font-family: var(--font-body); font-size: var(--text-base);">#CS1055</strong> and evaluated by the priority scheduling algorithm.
+            </p>
+            <div style="background: var(--white); border-radius: var(--radius-md); padding: var(--space-md); border: var(--border-thin); margin-bottom: var(--space-2xl); text-align: left; font-size: var(--text-xs); color: var(--taupe);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span>Calculated Priority Score:</span>
+                    <strong id="modalPriorityScore" style="color: var(--charcoal); font-size: var(--text-sm);">74 (High)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Designated Department:</span>
+                    <strong id="modalDepartment" style="color: var(--charcoal);">Road Maintenance</strong>
+                </div>
+            </div>
+            <div style="display: flex; gap: var(--space-md); justify-content: center;">
+                <a id="trackLink" href="track.html" class="btn btn--primary">Track This Issue</a>
+                <a href="my-complaints.html" class="btn btn--secondary">My Complaints</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ FOOTER ═══════════════ -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <svg class="footer__logo" viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="currentColor"/>
+                        <circle cx="16" cy="16" r="4" fill="currentColor"/>
+                        <path d="M16 8v4M16 20v4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                    <span class="footer__wordmark">Civics Smart</span>
+                    <p class="footer__tagline">Civic Issue Management Platform</p>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Citizen</h5>
+                    <ul>
+                        <li><a href="report.html">Report Issue</a></li>
+                        <li><a href="track.html">Track Complaint</a></li>
+                        <li><a href="my-complaints.html">My Complaints</a></li>
+                    </ul>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Administration</h5>
+                    <ul>
+                        <li><a href="admin.html">Authority Dashboard</a></li>
+                        <li><a href="admin.html#queue">Priority Queue</a></li>
+                        <li><a href="login.html">Officer Login</a></li>
+                    </ul>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Engine</h5>
+                    <ul>
+                        <li><a href="index.html#engine">Priority Scheduling</a></li>
+                        <li><a href="index.html#engine">DBMS Duplicates</a></li>
+                        <li><a href="index.html#engine">Aging Mechanism</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2026 Civics Smart — PBL Project</p>
+            </div>
+        </div>
+    </footer>
+    </div><!-- End .page-wrapper -->
+
+    <!-- Scripts -->
+    <script src="js/nav.js"></script>
+    <script src="js/report.js"></script>
+</body>
+</html>

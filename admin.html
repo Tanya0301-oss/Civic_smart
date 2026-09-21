@@ -1,0 +1,549 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authority Portal — Civics Smart</title>
+    <meta name="description" content="Municipal authority dashboard for complaint triage, priority queue scheduling, department dispatch, and resolution tracking.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z' fill='%23641F32'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23641F32'/%3E%3Cpath d='M16 8v4M16 20v4' stroke='%23641F32' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+    <!-- ═══════════════ MOBILE TOPBAR ═══════════════ -->
+    <header class="mobile-topbar" aria-label="Mobile Navigation Bar">
+        <button class="mobile-toggle" id="sidebarToggleBtn" aria-label="Open Navigation" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <a href="index.html" class="mobile-brand" aria-label="Civics Smart Home">
+            <svg class="mobile-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span class="mobile-brand-name">Civics Smart</span>
+        </a>
+        <a href="report.html" class="mobile-cta-btn" title="Report Issue" aria-label="Report Issue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </a>
+    </header>
+
+    <!-- ═══════════════ SIDEBAR OVERLAY (MOBILE) ═══════════════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
+    <!-- ═══════════════ LEFT SIDEBAR ═══════════════ -->
+    <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Main Navigation">
+        <!-- Brand / Header -->
+        <div class="sidebar__brand">
+            <a href="index.html" class="sidebar__brand-link" aria-label="Civics Smart — Home">
+                <div class="sidebar__logo-wrap">
+                    <svg class="sidebar__logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                        <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                        <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="sidebar__brand-text">
+                    <span class="sidebar__wordmark">CIVICS SMART</span>
+                    <span class="sidebar__tagline">CIVIC ACTION PLATFORM</span>
+                </div>
+            </a>
+            <button class="sidebar__collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse navigation" aria-expanded="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+
+            <button class="sidebar__close-btn" id="sidebarCloseBtn" aria-label="Close navigation">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="sidebar__body">
+            <div class="sidebar__section-title">Menu</div>
+            <nav class="sidebar__nav" aria-label="Platform Links">
+                <a href="index.html" class="sidebar__link" data-tooltip="Home">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Home</span>
+                </a>
+
+                <a href="report.html" class="sidebar__link" data-tooltip="Report Issue">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Report Issue</span>
+                </a>
+
+                <a href="track.html" class="sidebar__link" data-tooltip="Track Complaint">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <span>Track Complaint</span>
+                </a>
+
+                <a href="my-complaints.html" class="sidebar__link" data-tooltip="My Complaints">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>My Complaints</span>
+                </a>
+
+                <a href="index.html#how-it-works" class="sidebar__link" data-tooltip="How It Works">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                    <span>How It Works</span>
+                </a>
+
+                <a href="admin.html" class="sidebar__link active" aria-current="page" data-tooltip="Authority">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Authority</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Divider -->
+        <div class="sidebar__divider"></div>
+
+        <!-- Footer Actions -->
+        <div class="sidebar__footer">
+            <a href="login.html" class="sidebar__login-link" data-tooltip="Login">
+                <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                <span>Login</span>
+            </a>
+
+            <a href="report.html" class="sidebar__cta-btn" data-tooltip="Report a Problem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>REPORT A PROBLEM</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN CONTENT WRAPPER ═══════════════ -->
+    <div class="page-wrapper">
+        <div class="admin-shell">
+
+            <!-- Topbar -->
+            <header class="admin-topbar">
+                <div class="admin-topbar__left">
+                    <h2 class="admin-topbar__title" id="viewTitle">Dashboard Overview</h2>
+                </div>
+
+                <div class="admin-topbar__right">
+                    <div class="live-badge">
+                        <span class="live-dot"></span>
+                        <span>DBMS Sync Active</span>
+                    </div>
+                    <a href="index.html" class="btn btn--secondary btn--sm">View Citizen Portal</a>
+                </div>
+            </header>
+
+            <!-- Admin View Tabs -->
+            <div class="admin-tabs-bar">
+                <button class="admin-nav-item active" data-view="overview">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <span>Overview</span>
+                </button>
+                <button class="admin-nav-item" data-view="priority-queue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    <span>Priority Queue</span>
+                </button>
+                <button class="admin-nav-item" data-view="complaint-mgmt">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <span>Complaints</span>
+                </button>
+                <button class="admin-nav-item" data-view="department-load">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <span>Departments</span>
+                </button>
+                <button class="admin-nav-item" data-view="engine-viz">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <span>OS / DBMS Logic</span>
+                </button>
+            </div>
+
+
+            <!-- 1. OVERVIEW VIEW -->
+            <section class="admin-view active" id="view-overview">
+                
+                <!-- Stat Cards -->
+                <div class="admin-stats-grid">
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">Total Reports</span>
+                        <div class="admin-stat-val">248</div>
+                        <span class="admin-stat-footer">+18 today from 6 wards</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">Pending Triage</span>
+                        <div class="admin-stat-val" style="color: var(--gold);">72</div>
+                        <span class="admin-stat-footer">Ready in queue</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">In Progress</span>
+                        <div class="admin-stat-val" style="color: var(--status-progress);">36</div>
+                        <span class="admin-stat-footer">Teams on ground</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">Critical Priority</span>
+                        <div class="admin-stat-val" style="color: var(--status-critical);">11</div>
+                        <span class="admin-stat-footer">Requires immediate dispatch</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">Resolved</span>
+                        <div class="admin-stat-val" style="color: var(--status-resolved);">129</div>
+                        <span class="admin-stat-footer">Verified resolution rate: 88%</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-label">Duplicate Clusters</span>
+                        <div class="admin-stat-val" style="color: var(--burgundy);">18</div>
+                        <span class="admin-stat-footer">104 duplicate complaints merged</span>
+                    </div>
+                </div>
+
+                <!-- Top Queued Priority Items -->
+                <div class="data-card">
+                    <div class="data-card__header">
+                        <div>
+                            <h3 class="data-card__title">Top Scheduled Complaints</h3>
+                            <p style="font-size: var(--text-xs); color: var(--taupe); margin-top: 2px;">Ordered by dynamic priority scheduling algorithm (Severity + Duplicates + Aging)</p>
+                        </div>
+                        <button class="btn btn--primary btn--sm" id="simulateAgingBtn">
+                            Simulate Aging (+24h Boost)
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>ID</th>
+                                    <th>Title & Location</th>
+                                    <th>Category</th>
+                                    <th>Priority Score</th>
+                                    <th>Status</th>
+                                    <th>Aging / Wait</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topQueueTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- 2. PRIORITY QUEUE VIEW -->
+            <section class="admin-view" id="view-priority-queue">
+                <div style="margin-bottom: var(--space-xl); display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: var(--space-md);">
+                    <div>
+                        <h3 style="font-family: var(--font-heading); font-size: var(--text-3xl);">Multilevel Feedback Queue</h3>
+                        <p style="font-size: var(--text-sm); color: var(--taupe);">OS concept: complaints sorted into priority tiers to prevent starvation via dynamic aging.</p>
+                    </div>
+                    <button class="btn btn--secondary btn--sm" id="recalcQueueBtn">Re-run Scheduler</button>
+                </div>
+
+                <!-- Multilevel queue lanes -->
+                <div class="mlq-lane">
+                    <div class="mlq-lane__header" style="color: var(--status-critical);">
+                        <span>Queue 0 — Critical Tier (Score &ge; 85)</span>
+                        <span>Preemptive Dispatch</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <tbody id="queue0Body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mlq-lane">
+                    <div class="mlq-lane__header" style="color: var(--gold);">
+                        <span>Queue 1 — High Priority Tier (Score 70–84)</span>
+                        <span>48h SLA</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <tbody id="queue1Body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mlq-lane">
+                    <div class="mlq-lane__header" style="color: var(--charcoal);">
+                        <span>Queue 2 — Normal / Standard Tier (Score 50–69)</span>
+                        <span>Subject to Aging Compensation</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <tbody id="queue2Body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- 3. COMPLAINT MANAGEMENT VIEW -->
+            <section class="admin-view" id="view-complaint-mgmt">
+                <div class="data-card">
+                    <div class="data-card__header">
+                        <h3 class="data-card__title">Complaint Repository</h3>
+                        <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+                            <input type="text" id="adminTableSearch" placeholder="Filter complaints..." class="form-input" style="padding: 0.4rem 0.75rem; font-size: var(--text-xs); width: 220px;">
+                            <select id="adminCategoryFilter" class="form-select" style="padding: 0.4rem 2rem 0.4rem 0.75rem; font-size: var(--text-xs); width: auto;">
+                                <option value="all">All Categories</option>
+                                <option value="Roads">Roads</option>
+                                <option value="Water">Water</option>
+                                <option value="Waste">Waste</option>
+                                <option value="Lighting">Lighting</option>
+                                <option value="Drainage">Drainage</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Assigned Dept</th>
+                                    <th>Priority</th>
+                                    <th>Current Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allComplaintsTableBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- 4. DEPARTMENT WORKLOAD VIEW -->
+            <section class="admin-view" id="view-department-load">
+                <div class="data-card">
+                    <div class="data-card__header">
+                        <h3 class="data-card__title">Department Capacity & Backlog</h3>
+                        <span style="font-size: var(--text-xs); color: var(--taupe);">Active resource allocation</span>
+                    </div>
+                    <div style="padding: var(--space-2xl); display: flex; flex-direction: column; gap: var(--space-xl);">
+                        
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: var(--text-sm);">
+                                <strong>Road Infrastructure & Maintenance</strong>
+                                <span>38 / 100 Active Tickets (38% capacity)</span>
+                            </div>
+                            <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
+                                <div style="width: 38%; height: 100%; background: var(--burgundy);"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: var(--text-sm);">
+                                <strong>Municipal Water & Sewerage Board</strong>
+                                <span>52 / 100 Active Tickets (52% capacity)</span>
+                            </div>
+                            <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
+                                <div style="width: 52%; height: 100%; background: var(--gold);"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: var(--text-sm);">
+                                <strong>Solid Waste & Sanitation Department</strong>
+                                <span>68 / 100 Active Tickets (68% capacity)</span>
+                            </div>
+                            <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
+                                <div style="width: 68%; height: 100%; background: var(--status-critical);"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: var(--text-sm);">
+                                <strong>Electrical & Street Lighting Wing</strong>
+                                <span>24 / 100 Active Tickets (24% capacity)</span>
+                            </div>
+                            <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
+                                <div style="width: 24%; height: 100%; background: var(--status-resolved);"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: var(--text-sm);">
+                                <strong>Stormwater Drainage Division</strong>
+                                <span>31 / 100 Active Tickets (31% capacity)</span>
+                            </div>
+                            <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
+                                <div style="width: 31%; height: 100%; background: var(--status-progress);"></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- 5. OS / DBMS LOGIC VIEW -->
+            <section class="admin-view" id="view-engine-viz">
+                <div class="data-card">
+                    <div class="data-card__header">
+                        <h3 class="data-card__title">Operating Systems Process State Machine</h3>
+                        <span style="font-size: var(--text-xs); color: var(--taupe);">Civic complaint lifecycle modeled as an OS process</span>
+                    </div>
+                    <div class="state-diagram">
+                        <div class="state-node">
+                            <span class="state-node-title">NEW</span>
+                            <span class="state-node-desc">Report Submitted</span>
+                        </div>
+                        <span class="state-arrow">&rarr;</span>
+                        <div class="state-node">
+                            <span class="state-node-title">READY</span>
+                            <span class="state-node-desc">In Priority Queue</span>
+                        </div>
+                        <span class="state-arrow">&rarr;</span>
+                        <div class="state-node active">
+                            <span class="state-node-title">ASSIGNED</span>
+                            <span class="state-node-desc">Dispatched to Officer</span>
+                        </div>
+                        <span class="state-arrow">&rarr;</span>
+                        <div class="state-node">
+                            <span class="state-node-title">RUNNING</span>
+                            <span class="state-node-desc">Work in Progress</span>
+                        </div>
+                        <span class="state-arrow">&rarr;</span>
+                        <div class="state-node">
+                            <span class="state-node-title">WAITING</span>
+                            <span class="state-node-desc">Parts / Inspection</span>
+                        </div>
+                        <span class="state-arrow">&rarr;</span>
+                        <div class="state-node">
+                            <span class="state-node-title">TERMINATED</span>
+                            <span class="state-node-desc">Resolved & Audited</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="data-card" style="margin-top: var(--space-2xl);">
+                    <div class="data-card__header">
+                        <h3 class="data-card__title">DBMS Relational Schema & Integrity Constraints</h3>
+                        <span style="font-size: var(--text-xs); color: var(--taupe);">Foreign keys and duplicate clustering normalization</span>
+                    </div>
+                    <div style="padding: var(--space-2xl);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-xl);">
+                            <div style="background: var(--white); padding: var(--space-lg); border-radius: var(--radius-md); border: var(--border-thin);">
+                                <h4 style="font-size: var(--text-sm); font-weight: bold; margin-bottom: var(--space-sm); color: var(--burgundy);">Table: complaints (Master)</h4>
+                                <ul style="font-size: var(--text-xs); line-height: 1.8; color: var(--charcoal); font-family: monospace;">
+                                    <li>&bull; complaint_id [PK] (VARCHAR)</li>
+                                    <li>&bull; title (VARCHAR)</li>
+                                    <li>&bull; category_id [FK] &rarr; categories</li>
+                                    <li>&bull; dept_id [FK] &rarr; departments</li>
+                                    <li>&bull; ward_id [FK] &rarr; wards</li>
+                                    <li>&bull; cluster_id [FK] &rarr; clusters</li>
+                                    <li>&bull; priority_score (INT)</li>
+                                    <li>&bull; status_enum (NEW, READY, ASSIGNED, RUNNING, RESOLVED)</li>
+                                </ul>
+                            </div>
+                            <div style="background: var(--white); padding: var(--space-lg); border-radius: var(--radius-md); border: var(--border-thin);">
+                                <h4 style="font-size: var(--text-sm); font-weight: bold; margin-bottom: var(--space-sm); color: var(--burgundy);">Table: status_history (Audit Trail)</h4>
+                                <ul style="font-size: var(--text-xs); line-height: 1.8; color: var(--charcoal); font-family: monospace;">
+                                    <li>&bull; history_id [PK] (INT AUTO_INCREMENT)</li>
+                                    <li>&bull; complaint_id [FK] &rarr; complaints</li>
+                                    <li>&bull; from_status (VARCHAR)</li>
+                                    <li>&bull; to_status (VARCHAR)</li>
+                                    <li>&bull; updated_by (VARCHAR)</li>
+                                    <li>&bull; timestamp (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)</li>
+                                    <li>&bull; remarks (TEXT)</li>
+                                </ul>
+                            </div>
+                            <div style="background: var(--white); padding: var(--space-lg); border-radius: var(--radius-md); border: var(--border-thin);">
+                                <h4 style="font-size: var(--text-sm); font-weight: bold; margin-bottom: var(--space-sm); color: var(--burgundy);">Duplicate Grouping Architecture</h4>
+                                <p style="font-size: var(--text-xs); color: var(--taupe); line-height: 1.5; margin-bottom: var(--space-md);">
+                                    When citizens submit reports within a 200-meter radius of the same category, DBMS triggers map the secondary complaints to a single parent <code>cluster_id</code>.
+                                </p>
+                                <span class="badge badge--resolved">Foreign Key Linked: 1 Parent &rarr; 12 Children</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div><!-- End .page-wrapper -->
+
+    <!-- Status Change Modal -->
+    <div id="statusModal" style="display: none; position: fixed; inset: 0; background: rgba(40,37,34,0.7); z-index: 200; align-items: center; justify-content: center; padding: var(--space-xl);">
+        <div style="background: var(--ivory); border-radius: var(--radius-lg); max-width: 440px; width: 100%; padding: var(--space-2xl); border: var(--border-thin); box-shadow: var(--shadow-lg);">
+            <h3 style="font-family: var(--font-heading); font-size: var(--text-2xl); margin-bottom: var(--space-sm);">Update Ticket Status</h3>
+            <p id="modalComplaintRef" style="font-size: var(--text-sm); color: var(--taupe); margin-bottom: var(--space-lg);"></p>
+            
+            <div class="form-group">
+                <label class="form-label">New Process State</label>
+                <select id="modalStatusSelect" class="form-select">
+                    <option value="Reported">Reported (NEW)</option>
+                    <option value="Verified">Verified (READY)</option>
+                    <option value="Assigned">Assigned (DISPATCHED)</option>
+                    <option value="In Progress">In Progress (RUNNING)</option>
+                    <option value="Resolved">Resolved (TERMINATED)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-xl);">
+                <button type="button" class="btn btn--ghost btn--sm" id="closeStatusModal">Cancel</button>
+                <button type="button" class="btn btn--primary btn--sm" id="saveStatusBtn">Save Transition</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/nav.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

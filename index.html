@@ -1,0 +1,746 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civics Smart - Better Cities Begin With Being Heard</title>
+    <meta name="description"
+        content="Civics Smart is a civic complaint management platform. Report, track, and resolve civic issues in your city.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Favicon (inline SVG as data URI) -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z' fill='%23641F32'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23641F32'/%3E%3Cpath d='M16 8v4M16 20v4' stroke='%23641F32' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/hero.css">
+    <link rel="stylesheet" href="css/sections.css">
+</head>
+
+<body>
+
+    <!-- ═══════════════ MOBILE TOPBAR ═══════════════ -->
+    <header class="mobile-topbar" aria-label="Mobile Navigation Bar">
+        <button class="mobile-toggle" id="sidebarToggleBtn" aria-label="Open Navigation" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <a href="index.html" class="mobile-brand" aria-label="Civics Smart Home">
+            <svg class="mobile-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span class="mobile-brand-name">Civics Smart</span>
+        </a>
+        <a href="report.html" class="mobile-cta-btn" title="Report Issue" aria-label="Report Issue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </a>
+    </header>
+
+    <!-- ═══════════════ SIDEBAR OVERLAY (MOBILE) ═══════════════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
+    <!-- ═══════════════ LEFT SIDEBAR ═══════════════ -->
+    <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Main Navigation">
+        <!-- Brand / Header -->
+        <div class="sidebar__brand">
+            <a href="index.html" class="sidebar__brand-link" aria-label="Civics Smart — Home">
+                <div class="sidebar__logo-wrap">
+                    <svg class="sidebar__logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z" fill="#641F32"/>
+                        <circle cx="16" cy="16" r="4" fill="#641F32"/>
+                        <path d="M16 8v4M16 20v4" stroke="#641F32" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="sidebar__brand-text">
+                    <span class="sidebar__wordmark">CIVICS SMART</span>
+                    <span class="sidebar__tagline">CIVIC ACTION PLATFORM</span>
+                </div>
+            </a>
+            <button class="sidebar__collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse navigation" aria-expanded="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+
+            <button class="sidebar__close-btn" id="sidebarCloseBtn" aria-label="Close navigation">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="sidebar__body">
+            <div class="sidebar__section-title">Menu</div>
+            <nav class="sidebar__nav" aria-label="Platform Links">
+                <a href="index.html" class="sidebar__link active" aria-current="page" data-tooltip="Home">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Home</span>
+                </a>
+
+                <a href="report.html" class="sidebar__link" data-tooltip="Report Issue">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Report Issue</span>
+                </a>
+
+                <a href="track.html" class="sidebar__link" data-tooltip="Track Complaint">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <span>Track Complaint</span>
+                </a>
+
+                <a href="my-complaints.html" class="sidebar__link" data-tooltip="My Complaints">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>My Complaints</span>
+                </a>
+
+                <a href="index.html#how-it-works" class="sidebar__link" data-tooltip="How It Works">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                    <span>How It Works</span>
+                </a>
+
+                <a href="admin.html" class="sidebar__link" data-tooltip="Authority">
+                    <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Authority</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Divider -->
+        <div class="sidebar__divider"></div>
+
+        <!-- Footer Actions -->
+        <div class="sidebar__footer">
+            <a href="login.html" class="sidebar__login-link" data-tooltip="Login">
+                <svg class="sidebar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                <span>Login</span>
+            </a>
+
+            <a href="report.html" class="sidebar__cta-btn" data-tooltip="Report a Problem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>REPORT A PROBLEM</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN CONTENT WRAPPER ═══════════════ -->
+    <div class="page-wrapper">
+        <main>
+
+        <!-- ═══════════════ HERO ═══════════════ -->
+        <section class="hero" id="hero">
+            <div class="hero__bg">
+                <img src="images/hero-bg.jpg"
+                    alt="Cyber City Gurgaon urban infrastructure at dusk with highway light trails representing civic connectivity"
+                    loading="eager">
+            </div>
+            <div class="hero__content">
+                <p class="hero__label">Civic Issue Management Platform</p>
+                <h1 class="hero__heading">Better Cities Begin<br>With Being Heard.</h1>
+                <p class="hero__subheading">Report. Track. Resolve.</p>
+                <div class="hero__actions">
+                    <a href="report.html" class="btn btn--primary btn--lg">Report a Problem</a>
+                    <a href="track.html" class="btn btn--light btn--lg">Track Complaint</a>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ CIVIC PROBLEM ═══════════════ -->
+        <section class="section civic-problem" id="civic-problem">
+            <div class="container container--wide">
+                <div class="civic-problem__grid">
+                    <div class="civic-problem__text">
+                        <p class="section-label">The Problem</p>
+                        <h2>Reporting is only the first step.</h2>
+                        <p class="civic-problem__desc">
+                            Every day, civic problems go unresolved — not because no one reports them, but because
+                            reports get lost, duplicated, or deprioritized. Without a system to organize, prioritize,
+                            and track complaints, the gap between citizens and resolution keeps widening.
+                        </p>
+                    </div>
+                    <div class="civic-problem__image">
+                        <img src="images/civic-problem.jpg"
+                            alt="Indian urban transit infrastructure with elevated metro rail, road traffic, and auto-rickshaws illustrating daily civic bottlenecks"
+                            loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ CATEGORIES SLIDER ═══════════════ -->
+        <section class="section section--bg-beige categories" id="categories">
+            <div class="container">
+                <div class="categories__header">
+                    <div>
+                        <p class="section-label">What Can You Report</p>
+                        <h2>Complaint Categories</h2>
+                        <p style="font-size: var(--text-sm); color: var(--taupe); margin-top: 4px;">Swipe or slide
+                            horizontally to browse all public infrastructure sectors.</p>
+                    </div>
+                    <div class="categories__controls">
+                        <button type="button" class="slider-arrow-btn" id="categoryPrevBtn"
+                            aria-label="Slide to previous categories">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <button type="button" class="slider-arrow-btn" id="categoryNextBtn"
+                            aria-label="Slide to next categories">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="categories__slider" id="categorySlider">
+                    <!-- 1. Roads (User photo) -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/roads.jpg"
+                            alt="Indian city street pothole puddle reflecting passing yellow school bus" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Roads & Potholes</span>
+                            <span class="category-card__count">89 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 2. Water -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/water.jpg"
+                            alt="Underground municipal water pipeline rupture spraying potable water on city walkway"
+                            loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Water Supply</span>
+                            <span class="category-card__count">42 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 3. Waste -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/waste.jpg"
+                            alt="Overflowing municipal solid waste heap on an Indian city road with buses and citizens"
+                            loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Waste & Sanitation</span>
+                            <span class="category-card__count">67 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 4. Lighting -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/lighting.png"
+                            alt="Damaged tilted street lighting pole on city roadside at night" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Street Lighting</span>
+                            <span class="category-card__count">31 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 5. Drainage -->
+                    <a href="report.html" class="category-card">
+                        <img src="https://images.unsplash.com/photo-1594398901394-4e34939a4fd0?w=600&q=80&auto=format&fit=crop"
+                            alt="Open drainage on a city road" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Drainage & Sewer</span>
+                            <span class="category-card__count">28 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 6. Electricity -->
+                    <a href="report.html" class="category-card">
+                        <img src="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&q=80&auto=format&fit=crop"
+                            alt="Electricity poles and overhead wires" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Electricity & Power</span>
+                            <span class="category-card__count">19 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 7. Footpaths -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/footpath.jpg"
+                            alt="Urban pedestrian footpath blocked by two-wheelers and vendor stalls in city street"
+                            loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Footpaths & Encroachment</span>
+                            <span class="category-card__count">24 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 8. Parks -->
+                    <a href="report.html" class="category-card">
+                        <img src="https://images.unsplash.com/photo-1519331379826-f10be5486c6f?w=600&q=80&auto=format&fit=crop"
+                            alt="Public community park and gardens" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Parks & Green Spaces</span>
+                            <span class="category-card__count">16 active reports</span>
+                        </div>
+                    </a>
+
+                    <!-- 9. Traffic -->
+                    <a href="report.html" class="category-card">
+                        <img src="images/traffic.png"
+                            alt="Yellow urban traffic light signal pole on Indian city roadside" loading="lazy">
+                        <div class="category-card__overlay">
+                            <span class="category-card__name">Traffic & Signals</span>
+                            <span class="category-card__count">22 active reports</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+        <section class="section how-it-works" id="how-it-works">
+            <div class="container">
+                <p class="section-label">How It Works</p>
+                <h2>Three steps to resolution.</h2>
+                <div class="steps">
+                    <div class="step">
+                        <span class="step__number">01</span>
+                        <h3 class="step__title">Report</h3>
+                        <p class="step__desc">Citizen reports a civic problem with details, location, and photographic
+                            evidence.</p>
+                    </div>
+                    <div class="step__divider" aria-hidden="true"></div>
+                    <div class="step">
+                        <span class="step__number">02</span>
+                        <h3 class="step__title">Prioritize</h3>
+                        <p class="step__desc">The system evaluates severity, report frequency, and waiting time to
+                            determine processing order.</p>
+                    </div>
+                    <div class="step__divider" aria-hidden="true"></div>
+                    <div class="step">
+                        <span class="step__number">03</span>
+                        <h3 class="step__title">Resolve</h3>
+                        <p class="step__desc">The appropriate department is assigned and the complaint is tracked until
+                            resolution.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ CITY AT A GLANCE ═══════════════ -->
+        <section class="section section--bg-charcoal stats" id="stats">
+            <div class="container">
+                <p class="section-label section-label--light">City at a Glance</p>
+                <div class="stats__grid">
+                    <div class="stat">
+                        <span class="stat__number" data-target="248">0</span>
+                        <span class="stat__label">Total Reports</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat__number" data-target="72">0</span>
+                        <span class="stat__label">Pending</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat__number" data-target="11">0</span>
+                        <span class="stat__label">Critical</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat__number" data-target="129">0</span>
+                        <span class="stat__label">Resolved</span>
+                    </div>
+                </div>
+                <div class="stats__bars">
+                    <div class="bar-row">
+                        <span class="bar-row__label">Roads</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 78%" data-value="89"></div>
+                        </div>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-row__label">Waste</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 59%" data-value="67"></div>
+                        </div>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-row__label">Water</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 37%" data-value="42"></div>
+                        </div>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-row__label">Lighting</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 27%" data-value="31"></div>
+                        </div>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-row__label">Drainage</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 24%" data-value="28"></div>
+                        </div>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-row__label">Electricity</span>
+                        <div class="bar-row__track">
+                            <div class="bar-row__fill" style="--bar-width: 17%" data-value="19"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ SMART ENGINE ═══════════════ -->
+        <section class="section engine" id="engine">
+            <div class="container">
+                <p class="section-label">Under the Hood</p>
+                <h2 class="engine__heading">Behind every complaint is a system built to keep things moving.</h2>
+                <div class="engine__grid">
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                            </svg>
+                        </span>
+                        <h4>Priority Scheduling</h4>
+                        <p>Serious and frequently reported issues are processed earlier based on a computed priority
+                            score.</p>
+                    </div>
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7" />
+                                <rect x="14" y="3" width="7" height="7" />
+                                <rect x="3" y="14" width="7" height="7" />
+                                <rect x="14" y="14" width="7" height="7" />
+                            </svg>
+                        </span>
+                        <h4>Multilevel Queue</h4>
+                        <p>Complaints are organized into priority levels — Critical, High, Normal, Low — for structured
+                            processing.</p>
+                    </div>
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                        </span>
+                        <h4>Aging</h4>
+                        <p>Long-pending complaints gradually receive higher priority so they are never permanently
+                            ignored.</p>
+                    </div>
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <path d="M12 6v12" />
+                                <path d="M2 12h20" />
+                            </svg>
+                        </span>
+                        <h4>Duplicate Detection</h4>
+                        <p>Multiple reports about the same civic problem are grouped together, amplifying their
+                            priority.</p>
+                    </div>
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 20V10" />
+                                <path d="M18 20V4" />
+                                <path d="M6 20v-4" />
+                            </svg>
+                        </span>
+                        <h4>Status History</h4>
+                        <p>Every change in a complaint's lifecycle is recorded, creating a transparent and auditable
+                            trail.</p>
+                    </div>
+                    <div class="engine__card">
+                        <span class="engine__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                                <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
+                            </svg>
+                        </span>
+                        <h4>Database Integrity</h4>
+                        <p>Relational structure with proper constraints ensures data consistency across all records.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ TRACKING PREVIEW ═══════════════ -->
+        <section class="section section--bg-beige tracking-preview" id="tracking-preview">
+            <div class="container">
+                <p class="section-label">Live Tracking</p>
+                <h2>Every complaint tells a story.</h2>
+                <p class="tracking-preview__subtitle">Transparent, real-time status from submission to resolution.</p>
+
+                <div class="tracking-card">
+                    <div class="tracking-card__header">
+                        <div>
+                            <span class="tracking-card__id">Complaint #CS1024</span>
+                            <h3 class="tracking-card__title">Large pothole near Sector 15</h3>
+                            <span class="tracking-card__meta">Road &bull; Sector 15, Chandigarh</span>
+                        </div>
+                        <div class="tracking-card__priority">
+                            <span class="badge badge--critical">High Priority</span>
+                            <span class="tracking-card__score">Priority Score: <strong>87</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="tracking-card__body">
+                        <div class="tracking-card__timeline">
+                            <div class="timeline-step timeline-step--done">
+                                <span class="timeline-step__marker"></span>
+                                <div class="timeline-step__content">
+                                    <strong>Reported</strong>
+                                    <span>Sept 12, 2026 — 9:14 AM</span>
+                                </div>
+                            </div>
+                            <div class="timeline-step timeline-step--done">
+                                <span class="timeline-step__marker"></span>
+                                <div class="timeline-step__content">
+                                    <strong>Verified</strong>
+                                    <span>Sept 12, 2026 — 2:30 PM</span>
+                                </div>
+                            </div>
+                            <div class="timeline-step timeline-step--active">
+                                <span class="timeline-step__marker"></span>
+                                <div class="timeline-step__content">
+                                    <strong>Assigned</strong>
+                                    <span>Sept 13, 2026 — 10:00 AM</span>
+                                </div>
+                            </div>
+                            <div class="timeline-step">
+                                <span class="timeline-step__marker"></span>
+                                <div class="timeline-step__content">
+                                    <strong>In Progress</strong>
+                                </div>
+                            </div>
+                            <div class="timeline-step">
+                                <span class="timeline-step__marker"></span>
+                                <div class="timeline-step__content">
+                                    <strong>Resolved</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tracking-card__details">
+                            <div class="detail-row">
+                                <span class="detail-row__label">Duplicate Reports</span>
+                                <span class="detail-row__value">12 citizens reported this issue</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-row__label">Waiting Time</span>
+                                <span class="detail-row__value">4 days</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-row__label">Aging Boost</span>
+                                <span class="detail-row__value">+8 priority</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-row__label">Department</span>
+                                <span class="detail-row__value">Road Maintenance</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ AUTHORITY PREVIEW ═══════════════ -->
+        <section class="section authority-preview" id="authority-preview">
+            <div class="container">
+                <p class="section-label">For Authorities</p>
+                <h2>A dashboard built for action.</h2>
+                <p class="authority-preview__subtitle">Manage, prioritize, and resolve complaints across departments.
+                </p>
+
+                <div class="queue-preview">
+                    <div class="queue-preview__header">
+                        <h4>Priority Queue</h4>
+                        <span class="queue-preview__badge">Processing Order</span>
+                    </div>
+                    <div class="queue-preview__list">
+                        <div class="queue-item">
+                            <span class="queue-item__rank">1</span>
+                            <div class="queue-item__info">
+                                <strong>#CS1024</strong>
+                                <span>Large pothole near Sector 15</span>
+                            </div>
+                            <span class="queue-item__category">Road</span>
+                            <span class="queue-item__score">87</span>
+                            <span class="badge badge--critical">High</span>
+                        </div>
+                        <div class="queue-item">
+                            <span class="queue-item__rank">2</span>
+                            <div class="queue-item__info">
+                                <strong>#CS1031</strong>
+                                <span>Water leakage on MG Road</span>
+                            </div>
+                            <span class="queue-item__category">Water</span>
+                            <span class="queue-item__score">82</span>
+                            <span class="badge badge--critical">High</span>
+                        </div>
+                        <div class="queue-item">
+                            <span class="queue-item__rank">3</span>
+                            <div class="queue-item__info">
+                                <strong>#CS1009</strong>
+                                <span>Garbage overflow near Market Area</span>
+                            </div>
+                            <span class="queue-item__category">Waste</span>
+                            <span class="queue-item__score">79</span>
+                            <span class="badge badge--high">High</span>
+                        </div>
+                        <div class="queue-item">
+                            <span class="queue-item__rank">4</span>
+                            <div class="queue-item__info">
+                                <strong>#CS1045</strong>
+                                <span>Broken street light, Block D</span>
+                            </div>
+                            <span class="queue-item__category">Lighting</span>
+                            <span class="queue-item__score">65</span>
+                            <span class="badge badge--normal">Normal</span>
+                        </div>
+                        <div class="queue-item">
+                            <span class="queue-item__rank">5</span>
+                            <div class="queue-item__info">
+                                <strong>#CS1052</strong>
+                                <span>Clogged drain near School Road</span>
+                            </div>
+                            <span class="queue-item__category">Drainage</span>
+                            <span class="queue-item__score">58</span>
+                            <span class="badge badge--normal">Normal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ═══════════════ FINAL CTA ═══════════════ -->
+        <section class="section section--bg-dark final-cta" id="final-cta">
+            <div class="container final-cta__inner">
+                <h2>Your city is listening.</h2>
+                <p>Every report matters. Every resolution counts. Help build a better city, one complaint at a time.</p>
+                <div class="final-cta__actions">
+                    <a href="report.html" class="btn btn--primary btn--lg"
+                        style="background-color: var(--ivory); color: var(--dark-burgundy);">Report a Problem</a>
+                    <a href="track.html" class="btn btn--light btn--lg">Track Complaint</a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+
+    <!-- ═══════════════ FOOTER ═══════════════ -->
+    <footer class="footer" id="about">
+        <div class="container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <svg class="footer__logo" viewBox="0 0 32 32" width="28" height="28" fill="none"
+                        xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path
+                            d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S5 22.075 5 16 9.925 5 16 5z"
+                            fill="currentColor" />
+                        <circle cx="16" cy="16" r="4" fill="currentColor" />
+                        <path d="M16 8v4M16 20v4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+                    </svg>
+                    <span class="footer__wordmark">Civics Smart</span>
+                    <p class="footer__tagline">Civic Issue Management Platform</p>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Platform</h5>
+                    <ul>
+                        <li><a href="report.html">Report Issue</a></li>
+                        <li><a href="track.html">Track Complaint</a></li>
+                        <li><a href="my-complaints.html">My Complaints</a></li>
+                    </ul>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Project</h5>
+                    <ul>
+                        <li><a href="#how-it-works">How It Works</a></li>
+                        <li><a href="#engine">Smart Engine</a></li>
+                        <li><a href="admin.html">Admin Dashboard</a></li>
+                    </ul>
+                </div>
+                <div class="footer__col">
+                    <h5 class="footer__heading">Academic</h5>
+                    <ul>
+                        <li><a href="#engine">OS Concepts</a></li>
+                        <li><a href="#engine">DBMS Integration</a></li>
+                        <li><a href="#">Documentation</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2026 Civics Smart — PBL Project</p>
+            </div>
+        </div>
+    </footer>
+    </div><!-- End .page-wrapper -->
+
+    <!-- Scripts -->
+    <script src="js/nav.js"></script>
+    <script src="js/animations.js"></script>
+</body>
+
+</html>
