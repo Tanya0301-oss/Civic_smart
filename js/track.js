@@ -4,257 +4,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('trackInput');
     const chips = document.querySelectorAll('.track-chip');
 
-    // Database of complaints
-    const complaintsDB = {
-        'CS1024': {
-            id: 'CS1024',
-            title: 'Large pothole near Sector 15 main market intersection',
-            description: 'Severe road surface cave-in approximately 4 feet wide and 8 inches deep. Causing severe traffic congestion during peak hours and hazardous for two-wheelers at night.',
-            category: 'Roads',
-            location: 'Sector 15 Main Market, Gate No. 2, Chandigarh',
-            ward: 'Central Zone — Ward 14',
-            department: 'Road Infrastructure & Maintenance',
-            officer: 'Er. Rajesh Varma (Junior Engineer - Roads)',
-            priorityScore: 87,
-            severity: 'High',
-            severityBase: 65,
-            duplicateCount: 12,
-            duplicateBoost: 14,
-            waitingDays: 4,
-            agingBoost: 8,
-            status: 'Assigned',
-            processState: 'ASSIGNED (MLQ Lane 1: High Priority)',
-            date: 'Sept 12, 2026',
-            photo: 'images/roads.jpg',
-            clusterId: 'CLUS-8924',
-            history: [
-                {
-                    title: 'Complaint Registered',
-                    date: 'Sept 12, 2026 — 9:14 AM',
-                    desc: 'Initial report filed by citizen. Automated duplicate check linked 11 other geo-located complaints to cluster CLUS-8924.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Field Verification Completed',
-                    date: 'Sept 12, 2026 — 2:30 PM',
-                    desc: 'Municipal inspector verified road distress. Verified depth: 22cm. Upgraded severity to High.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Dispatched to Department',
-                    date: 'Sept 13, 2026 — 10:00 AM',
-                    desc: 'Assigned to Road Maintenance Div 3. Materials request (asphalt & cold-mix) requisitioned.',
-                    completed: true,
-                    current: true
-                },
-                {
-                    title: 'Physical Repair in Progress',
-                    date: 'Scheduled for Sept 19, 2026',
-                    desc: 'Road roller and patch crew scheduled for night execution to minimize daytime traffic disruption.',
-                    completed: false,
-                    current: false
-                },
-                {
-                    title: 'Quality Audit & Resolution',
-                    date: 'Awaiting Completion',
-                    desc: 'Final site inspection and photographic proof upload before closing ticket in municipal DBMS.',
-                    completed: false,
-                    current: false
-                }
-            ]
-        },
-        'CS1031': {
-            id: 'CS1031',
-            title: 'Underground drinking water pipeline burst with heavy wastage',
-            description: 'Major pipeline rupture flooding the service lane. Clean potable water gushing for past 36 hours, dropping water pressure for neighboring blocks.',
-            category: 'Water',
-            location: 'MG Road, Opposite Metro Pillar 142',
-            ward: 'North Zone — Ward 08',
-            department: 'Municipal Water & Sewerage Board',
-            officer: 'S. K. Nambiar (Assistant Executive Engineer)',
-            priorityScore: 82,
-            severity: 'High',
-            severityBase: 70,
-            duplicateCount: 7,
-            duplicateBoost: 6,
-            waitingDays: 3,
-            agingBoost: 6,
-            status: 'In Progress',
-            processState: 'RUNNING / IN PROGRESS (MLQ Lane 1)',
-            date: 'Sept 13, 2026',
-            photo: 'images/water.jpg',
-            clusterId: 'CLUS-7102',
-            history: [
-                {
-                    title: 'Complaint Registered',
-                    date: 'Sept 13, 2026 — 6:40 AM',
-                    desc: 'Reported by local residents committee.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Telemetry Verified',
-                    date: 'Sept 13, 2026 — 8:15 AM',
-                    desc: 'Pressure sensor telemetry confirmed pressure drop in Sector feeder valve.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Emergency Isolation Valve Closed',
-                    date: 'Sept 13, 2026 — 11:30 AM',
-                    desc: 'Excavation team mobilized to expose 300mm ductile iron pipe joint.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Pipe Weld & Replacement Active',
-                    date: 'Sept 14, 2026 — Ongoing',
-                    desc: 'Welding collar replacement in progress. Water tankers routed as temporary relief.',
-                    completed: true,
-                    current: true
-                },
-                {
-                    title: 'Pressure Test & Closure',
-                    date: 'Expected Today 8:00 PM',
-                    desc: 'System backwash and bacteriological testing before supply resumption.',
-                    completed: false,
-                    current: false
-                }
-            ]
-        },
-        'CS1009': {
-            id: 'CS1009',
-            title: 'Garbage dump overflowing outside community park',
-            category: 'Waste',
-            location: 'Pocket B, Green Park Enclave',
-            ward: 'South Zone — Ward 05',
-            department: 'Solid Waste & Sanitation Department',
-            officer: 'P. Anand (Sanitary Inspector)',
-            priorityScore: 79,
-            severity: 'Medium',
-            severityBase: 55,
-            duplicateCount: 15,
-            duplicateBoost: 24,
-            waitingDays: 0,
-            agingBoost: 0,
-            status: 'Resolved',
-            processState: 'TERMINATED / RESOLVED',
-            date: 'Sept 08, 2026',
-            photo: 'images/waste.jpg',
-            clusterId: 'CLUS-5401',
-            history: [
-                {
-                    title: 'Reported',
-                    date: 'Sept 08, 2026 — 7:00 AM',
-                    desc: 'Multiple reports clustered.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Sanitation Truck Assigned',
-                    date: 'Sept 08, 2026 — 9:30 AM',
-                    desc: 'Compactor vehicle #DL-1M-4821 dispatched.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Cleared & Disinfected',
-                    date: 'Sept 08, 2026 — 1:15 PM',
-                    desc: 'Waste cleared, secondary bin replaced, and lime powder sanitized.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Audit Complete & Resolved',
-                    date: 'Sept 08, 2026 — 4:00 PM',
-                    desc: 'Citizen confirmation received. Issue closed in municipal database.',
-                    completed: true,
-                    current: true
-                }
-            ]
-        },
-        'CS1045': {
-            id: 'CS1045',
-            title: 'Street light pole wiring sparked and blacked out whole lane',
-            category: 'Lighting',
-            location: 'Lane 4, Subhash Nagar',
-            ward: 'West Zone — Ward 12',
-            department: 'Electrical & Street Lighting Wing',
-            officer: 'Amitabh Sen (AE Electrical)',
-            priorityScore: 65,
-            severity: 'Medium',
-            severityBase: 50,
-            duplicateCount: 4,
-            duplicateBoost: 15,
-            waitingDays: 0,
-            agingBoost: 0,
-            status: 'Resolved',
-            processState: 'TERMINATED / RESOLVED',
-            date: 'Sept 04, 2026',
-            photo: 'images/lighting.png',
-            clusterId: 'CLUS-3209',
-            history: [
-                {
-                    title: 'Reported',
-                    date: 'Sept 04, 2026 — 8:20 PM',
-                    desc: 'Hazardous short circuit reported.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Fuse Isolated',
-                    date: 'Sept 04, 2026 — 9:45 PM',
-                    desc: 'Emergency lineworker de-energized feeder line.',
-                    completed: true,
-                    current: false
-                },
-                {
-                    title: 'Cable Rewired & LED Restored',
-                    date: 'Sept 05, 2026 — 11:30 AM',
-                    desc: 'Faulty underground junction box replaced.',
-                    completed: true,
-                    current: true
-                }
-            ]
-        }
-    };
+    const lifecycle = ['Reported', 'Verified', 'Assigned', 'In Progress', 'Completion Submitted', 'Resolved'];
 
-    // Also pull complaints from localStorage
-    try {
-        const stored = JSON.parse(localStorage.getItem('civics_smart_complaints') || '[]');
-        stored.forEach(item => {
-            complaintsDB[item.id] = {
-                ...item,
-                severityBase: item.priorityScore - 5,
-                duplicateBoost: 0,
-                processState: item.status.toUpperCase() + ' (MLQ Active)',
-                history: [
-                    {
-                        title: 'Complaint Registered',
-                        date: item.date + ' — ' + item.time,
-                        desc: 'Submitted through citizen web portal. Seeded into municipal staging queue.',
-                        completed: true,
-                        current: true
-                    },
-                    {
-                        title: 'Verification Pending',
-                        date: 'Queued for inspection',
-                        desc: 'System evaluating priority scheduling algorithm.',
-                        completed: false,
-                        current: false
-                    }
-                ]
+    function officerName(id) {
+        const officer = CivicData.getOfficers().find(item => item.id === id);
+        return officer ? `${officer.name} (${officer.role})` : 'Awaiting eligible officer allocation';
+    }
+
+    function timelineFor(complaint) {
+        const auditEvents = CivicData.getAudit()
+            .filter(event => event.complaintId === complaint.id)
+            .reverse();
+
+        const statusIndex = lifecycle.indexOf(complaint.status);
+        const currentIndex = statusIndex >= 0 ? statusIndex : Math.min(3, lifecycle.length - 1);
+        return lifecycle.map((status, idx) => {
+            const event = auditEvents.find(item => item.toStatus === status || item.action.includes(status));
+            return {
+                title: status === 'Completion Submitted' ? 'Completion Submitted for Verification' : `${status} ${idx === 0 ? '' : 'Stage'}`.trim(),
+                date: event ? event.timestamp : (idx <= statusIndex ? `${complaint.date} ${complaint.time}` : 'Pending'),
+                desc: event ? event.message : defaultTimelineText(status, complaint),
+                completed: idx < currentIndex || complaint.status === 'Resolved',
+                current: idx === currentIndex && complaint.status !== 'Resolved'
             };
         });
-    } catch (e) {
-        console.error(e);
+    }
+
+    function defaultTimelineText(status, complaint) {
+        const text = {
+            Reported: 'Citizen report stored in the complaint repository with a generated primary key.',
+            Verified: 'Authority review validates category, ward and duplicate cluster.',
+            Assigned: 'Allocation module selects an eligible officer by skill, service area and workload.',
+            'In Progress': 'Officer accepts the assignment and begins field work.',
+            'Completion Submitted': 'Officer submits work notes and evidence for authority verification.',
+            Resolved: 'Authority verifies completion and closes the complaint.'
+        };
+        return text[status] || complaint.description;
     }
 
     function renderComplaint(id) {
         const cleanId = id.toUpperCase().replace('#', '').trim();
-        const data = complaintsDB[cleanId];
+        const data = CivicData.getComplaints().find(item => item.id === cleanId);
 
         if (!data) {
             container.innerHTML = `
@@ -273,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.querySelectorAll('.quick-demo-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    searchInput.value = btn.dataset.id;
                     renderComplaint(btn.dataset.id);
                 });
             });
@@ -280,11 +71,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const isResolved = data.status.toLowerCase() === 'resolved';
-        const badgeClass = isResolved ? 'badge--resolved' : (data.priorityScore >= 80 ? 'badge--critical' : (data.priorityScore >= 70 ? 'badge--high' : 'badge--normal'));
+        const badgeClass = isResolved ? 'badge--resolved' : (data.priorityScore >= 85 ? 'badge--critical' : (data.priorityScore >= 70 ? 'badge--high' : 'badge--normal'));
+        const timeline = timelineFor(data);
 
         container.innerHTML = `
             <article class="tracking-main-card">
-                <!-- Hero Header -->
                 <div class="tracking-hero-header">
                     <div class="tracking-hero-left">
                         <div class="tracking-badge-row">
@@ -309,17 +100,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
 
-                <!-- Main Details Grid -->
                 <div class="tracking-grid">
-                    
-                    <!-- Left: Status Stepper -->
                     <div>
                         <h4 style="font-size: var(--text-base); font-family: var(--font-body); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: var(--space-2xl); color: var(--charcoal);">
                             Lifecycle Timeline & Status History
                         </h4>
 
                         <div class="stepper">
-                            ${data.history.map((step, idx) => `
+                            ${timeline.map((step, idx) => `
                                 <div class="stepper-item ${step.completed ? 'completed' : ''} ${step.current ? 'current' : ''}">
                                     <div class="stepper-node">
                                         ${step.completed ? '&#10003;' : (idx + 1)}
@@ -345,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         ` : ''}
                     </div>
 
-                    <!-- Right: OS & DBMS Architecture Insights -->
                     <div>
                         <div class="engine-insight-box">
                             <div class="insight-header">
@@ -380,44 +167,41 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="divider" style="margin-block: var(--space-sm);"></div>
 
                             <div class="insight-header">
-                                <h4>DBMS Relational Attributes</h4>
-                                <span style="font-size: 0.7rem; color: var(--gold); font-weight: bold;">Normalized Schema</span>
+                                <h4>Workflow Accountability</h4>
+                                <span style="font-size: 0.7rem; color: var(--gold); font-weight: bold;">DBMS Contract</span>
                             </div>
 
                             <div class="insight-data-list">
                                 <div class="insight-data-item">
-                                    <span class="label">Primary Key (PK):</span>
+                                    <span class="label">Primary Key:</span>
                                     <span class="value" style="font-family: monospace;">COMPLAINT_ID = '${data.id}'</span>
                                 </div>
                                 <div class="insight-data-item">
-                                    <span class="label">Department Assigned (FK):</span>
+                                    <span class="label">Department Assigned:</span>
                                     <span class="value">${data.department}</span>
                                 </div>
                                 <div class="insight-data-item">
                                     <span class="label">Field Officer:</span>
-                                    <span class="value">${data.officer || 'Superintending Engineer'}</span>
+                                    <span class="value">${officerName(data.assignedOfficerId)}</span>
                                 </div>
                                 <div class="insight-data-item">
-                                    <span class="label">Duplicate Cluster (FK):</span>
+                                    <span class="label">Duplicate Cluster:</span>
                                     <span class="value" style="font-family: monospace;">${data.clusterId || 'CLUS-SINGLE'}</span>
                                 </div>
                             </div>
 
                             <div style="margin-top: var(--space-md); padding: var(--space-md); background: rgba(233,223,208,0.3); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--taupe);">
-                                Relational integrity constraints ensure that all status transitions are logged in an immutable audit table with ACID transactional consistency.
+                                Every visible transition is mirrored into the local audit trail. A real backend would enforce these same transitions with transactions and authorization.
                             </div>
                         </div>
                     </div>
-
                 </div>
             </article>
         `;
 
-        // Update URL without page reload
         history.replaceState(null, '', `?id=${data.id}`);
     }
 
-    // Handle form submit
     if (searchForm && searchInput) {
         searchForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -426,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Quick chips
     chips.forEach(chip => {
         chip.addEventListener('click', () => {
             const id = chip.dataset.id;
@@ -435,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Check URL parameters for id
     const urlParams = new URLSearchParams(window.location.search);
     const initialId = urlParams.get('id') || 'CS1024';
     searchInput.value = initialId;

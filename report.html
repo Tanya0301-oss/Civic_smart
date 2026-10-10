@@ -206,15 +206,127 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="ward" class="form-label">Municipal Ward / Zone</label>
-                        <select id="ward" name="ward" class="form-select">
-                            <option value="Central Zone - Ward 14">Central Zone — Ward 14</option>
-                            <option value="North Zone - Ward 08">North Zone — Ward 08</option>
-                            <option value="East Zone - Ward 21">East Zone — Ward 21</option>
-                            <option value="South Zone - Ward 05">South Zone — Ward 05</option>
-                            <option value="West Zone - Ward 12">West Zone — Ward 12</option>
+                        <label for="tehsil" class="form-label">Tehsil / Sub-District <span class="required">*</span></label>
+                        <select id="tehsil" name="tehsil" class="form-select" required>
+                            <option value="" disabled selected>Select Dehradun tehsil</option>
+                            <option value="Dehradun Sadar">Dehradun Sadar</option>
+                            <option value="Doiwala">Doiwala</option>
+                            <option value="Rishikesh">Rishikesh</option>
+                            <option value="Vikasnagar">Vikasnagar</option>
+                            <option value="Chakrata">Chakrata</option>
+                            <option value="Kalsi">Kalsi</option>
+                            <option value="Tyuni">Tyuni</option>
+                            <option value="Mussoorie">Mussoorie</option>
                         </select>
-                        <span class="form-hint">Used for relational index partitioning.</span>
+                        <span class="form-hint">Helps identify the correct Dehradun sub-district jurisdiction.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ward" class="form-label">Municipal Ward <span class="required">*</span></label>
+                        <select id="ward" name="ward" class="form-select" required>
+                            <option value="" disabled selected>Select Dehradun municipal ward</option>
+                            <option value="Ward 1 - Malshi">Ward 1 - Malshi</option>
+                            <option value="Ward 2 - Vijay Pur">Ward 2 - Vijay Pur</option>
+                            <option value="Ward 3 - Ranjhawala">Ward 3 - Ranjhawala</option>
+                            <option value="Ward 4 - Rajpur">Ward 4 - Rajpur</option>
+                            <option value="Ward 5 - Dhoran">Ward 5 - Dhoran</option>
+                            <option value="Ward 6 - Doon Vihar">Ward 6 - Doon Vihar</option>
+                            <option value="Ward 7 - Jakhan">Ward 7 - Jakhan</option>
+                            <option value="Ward 8 - Salawala">Ward 8 - Salawala</option>
+                            <option value="Ward 9 - Arya Nagar">Ward 9 - Arya Nagar</option>
+                            <option value="Ward 10 - Dobhal Wala">Ward 10 - Dobhal Wala</option>
+                            <option value="Ward 11 - Vijay Colony">Ward 11 - Vijay Colony</option>
+                            <option value="Ward 12 - Kishan Nagar">Ward 12 - Kishan Nagar</option>
+                            <option value="Ward 13 - D.L Road">Ward 13 - D.L Road</option>
+                            <option value="Ward 14 - Rishpana">Ward 14 - Rishpana</option>
+                            <option value="Ward 15 - Karanpur">Ward 15 - Karanpur</option>
+                            <option value="Ward 16 - Bakralwala">Ward 16 - Bakralwala</option>
+                            <option value="Ward 17 - Chukhauwala">Ward 17 - Chukhauwala</option>
+                            <option value="Ward 18 - Indra Colony">Ward 18 - Indra Colony</option>
+                            <option value="Ward 19 - Ghanta Ghar Kalika Mandir Marg">Ward 19 - Ghanta Ghar Kalika Mandir Marg</option>
+                            <option value="Ward 20 - Race Course (North)">Ward 20 - Race Course (North)</option>
+                            <option value="Ward 21 - M.K.P">Ward 21 - M.K.P</option>
+                            <option value="Ward 22 - Tilak Road">Ward 22 - Tilak Road</option>
+                            <option value="Ward 23 - Khurbura">Ward 23 - Khurbura</option>
+                            <option value="Ward 24 - Shivaji Marg">Ward 24 - Shivaji Marg</option>
+                            <option value="Ward 25 - Indrish Nagar">Ward 25 - Indrish Nagar</option>
+                            <option value="Ward 26 - Dhamawala">Ward 26 - Dhamawala</option>
+                            <option value="Ward 27 - Jhanda Mohalla">Ward 27 - Jhanda Mohalla</option>
+                            <option value="Ward 28 - Dalanwala (North)">Ward 28 - Dalanwala (North)</option>
+                            <option value="Ward 29 - Dalanwala (East)">Ward 29 - Dalanwala (East)</option>
+                            <option value="Ward 30 - Dalanwala (South)">Ward 30 - Dalanwala (South)</option>
+                            <option value="Ward 31 - Kaulaghar">Ward 31 - Kaulaghar</option>
+                            <option value="Ward 32 - Ballupur">Ward 32 - Ballupur</option>
+                            <option value="Ward 33 - Yamuna Colony">Ward 33 - Yamuna Colony</option>
+                            <option value="Ward 34 - Govind Ghar">Ward 34 - Govind Ghar</option>
+                            <option value="Ward 35 - Shri Dev Suman">Ward 35 - Shri Dev Suman</option>
+                            <option value="Ward 36 - Vijay Park">Ward 36 - Vijay Park</option>
+                            <option value="Ward 37 - Basant Vihar">Ward 37 - Basant Vihar</option>
+                            <option value="Ward 38 - Panditwari">Ward 38 - Panditwari</option>
+                            <option value="Ward 39 - Indra Nagar">Ward 39 - Indra Nagar</option>
+                            <option value="Ward 40 - Semma Dwar">Ward 40 - Semma Dwar</option>
+                            <option value="Ward 41 - Indrapuram">Ward 41 - Indrapuram</option>
+                            <option value="Ward 42 - Kawali">Ward 42 - Kawali</option>
+                            <option value="Ward 43 - Dwanpuri">Ward 43 - Dwanpuri</option>
+                            <option value="Ward 44 - Patel Nagar (West)">Ward 44 - Patel Nagar (West)</option>
+                            <option value="Ward 45 - Gandhi Gram">Ward 45 - Gandhi Gram</option>
+                            <option value="Ward 46 - Adhoiwala">Ward 46 - Adhoiwala</option>
+                            <option value="Ward 47 - Chandar Road MDDA Colony">Ward 47 - Chandar Road MDDA Colony</option>
+                            <option value="Ward 48 - Badrish Colony">Ward 48 - Badrish Colony</option>
+                            <option value="Ward 49 - Bhagat Singh Colony">Ward 49 - Bhagat Singh Colony</option>
+                            <option value="Ward 50 - Rajiv Nagar">Ward 50 - Rajiv Nagar</option>
+                            <option value="Ward 51 - Bani Vihar">Ward 51 - Bani Vihar</option>
+                            <option value="Ward 52 - Saraswati Vihar">Ward 52 - Saraswati Vihar</option>
+                            <option value="Ward 53 - Mata Mandir Road">Ward 53 - Mata Mandir Road</option>
+                            <option value="Ward 54 - Veer Chandra Singh Garwali Ajabpur">Ward 54 - Veer Chandra Singh Garwali Ajabpur</option>
+                            <option value="Ward 55 - Shah Nagar">Ward 55 - Shah Nagar</option>
+                            <option value="Ward 56 - Dharampur">Ward 56 - Dharampur</option>
+                            <option value="Ward 57 - Nehru Colony">Ward 57 - Nehru Colony</option>
+                            <option value="Ward 58 - Defence Colony">Ward 58 - Defence Colony</option>
+                            <option value="Ward 59 - Gujrara Mansingh">Ward 59 - Gujrara Mansingh</option>
+                            <option value="Ward 60 - Danda Lakhond">Ward 60 - Danda Lakhond</option>
+                            <option value="Ward 61 - Aamwala Tarla">Ward 61 - Aamwala Tarla</option>
+                            <option value="Ward 62 - NunanKhera">Ward 62 - NunanKhera</option>
+                            <option value="Ward 63 - Ladpur">Ward 63 - Ladpur</option>
+                            <option value="Ward 64 - Nehru Gram">Ward 64 - Nehru Gram</option>
+                            <option value="Ward 65 - Dobhal Chowk">Ward 65 - Dobhal Chowk</option>
+                            <option value="Ward 66 - Raipur">Ward 66 - Raipur</option>
+                            <option value="Ward 67 - Mokhampur">Ward 67 - Mokhampur</option>
+                            <option value="Ward 68 - Chak Tun Wala Miya Wala">Ward 68 - Chak Tun Wala Miya Wala</option>
+                            <option value="Ward 69 - Ritha Mandi">Ward 69 - Ritha Mandi</option>
+                            <option value="Ward 70 - Lakhi Bag">Ward 70 - Lakhi Bag</option>
+                            <option value="Ward 71 - Patel Nagar (East)">Ward 71 - Patel Nagar (East)</option>
+                            <option value="Ward 72 - Dehra Khash">Ward 72 - Dehra Khash</option>
+                            <option value="Ward 73 - Vidhya Vihar">Ward 73 - Vidhya Vihar</option>
+                            <option value="Ward 74 - Bhrampuri">Ward 74 - Bhrampuri</option>
+                            <option value="Ward 75 - Lohia Nagar">Ward 75 - Lohia Nagar</option>
+                            <option value="Ward 76 - Niranjanpur">Ward 76 - Niranjanpur</option>
+                            <option value="Ward 77 - Majra">Ward 77 - Majra</option>
+                            <option value="Ward 78 - Turner Road">Ward 78 - Turner Road</option>
+                            <option value="Ward 79 - Bharuwala Grant">Ward 79 - Bharuwala Grant</option>
+                            <option value="Ward 80 - Rest Camp">Ward 80 - Rest Camp</option>
+                            <option value="Ward 81 - Race Course (South)">Ward 81 - Race Course (South)</option>
+                            <option value="Ward 82 - Deep Nagar">Ward 82 - Deep Nagar</option>
+                            <option value="Ward 83 - Kedarpur">Ward 83 - Kedarpur</option>
+                            <option value="Ward 84 - Banjarowala">Ward 84 - Banjarowala</option>
+                            <option value="Ward 85 - Mothrowala">Ward 85 - Mothrowala</option>
+                            <option value="Ward 86 - Sewalakala">Ward 86 - Sewalakala</option>
+                            <option value="Ward 87 - Pithuwala">Ward 87 - Pithuwala</option>
+                            <option value="Ward 88 - Mehuwala-1">Ward 88 - Mehuwala-1</option>
+                            <option value="Ward 89 - Mehuwala-2">Ward 89 - Mehuwala-2</option>
+                            <option value="Ward 90 - Mohobiwala">Ward 90 - Mohobiwala</option>
+                            <option value="Ward 91 - Chanderbani">Ward 91 - Chanderbani</option>
+                            <option value="Ward 92 - Arcdeia-1">Ward 92 - Arcdeia-1</option>
+                            <option value="Ward 93 - Arcdeia-2">Ward 93 - Arcdeia-2</option>
+                            <option value="Ward 94 - Nathanpur-1">Ward 94 - Nathanpur-1</option>
+                            <option value="Ward 95 - Nathanpur-2">Ward 95 - Nathanpur-2</option>
+                            <option value="Ward 96 - Nawada">Ward 96 - Nawada</option>
+                            <option value="Ward 97 - Harrawala">Ward 97 - Harrawala</option>
+                            <option value="Ward 98 - Ballawala">Ward 98 - Ballawala</option>
+                            <option value="Ward 99 - Nakrunda">Ward 99 - Nakrunda</option>
+                            <option value="Ward 100 - Nathuawala">Ward 100 - Nathuawala</option>
+                        </select>
+                        <span class="form-hint">Scrollable ward list used to identify municipal jurisdiction.</span>
                     </div>
                 </div>
 
@@ -408,6 +520,7 @@
 
     <!-- Scripts -->
     <script src="js/nav.js"></script>
+    <script src="js/civic-data.js"></script>
     <script src="js/report.js"></script>
 </body>
 </html>

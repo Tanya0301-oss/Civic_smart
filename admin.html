@@ -178,6 +178,7 @@
                         <span class="live-dot"></span>
                         <span>DBMS Sync Active</span>
                     </div>
+                    <a href="officer.html" class="btn btn--secondary btn--sm">Officer Portal</a>
                     <a href="index.html" class="btn btn--secondary btn--sm">View Citizen Portal</a>
                 </div>
             </header>
@@ -513,6 +514,40 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="data-card" style="margin-top: var(--space-2xl);">
+                    <div class="data-card__header">
+                        <h3 class="data-card__title">Audit Trail & Notifications</h3>
+                        <span style="font-size: var(--text-xs); color: var(--taupe);">Traceability for status transitions, allocation, and alerts</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Complaint</th>
+                                    <th>Action</th>
+                                    <th>Actor</th>
+                                    <th>Transition</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="table-responsive" style="border-top: var(--border-thin);">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Recipient</th>
+                                    <th>Complaint</th>
+                                    <th>Notification</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notificationTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
         </div>
@@ -531,7 +566,10 @@
                     <option value="Verified">Verified (READY)</option>
                     <option value="Assigned">Assigned (DISPATCHED)</option>
                     <option value="In Progress">In Progress (RUNNING)</option>
+                    <option value="Blocked">Blocked (WAITING)</option>
+                    <option value="Completion Submitted">Completion Submitted (AWAITING VERIFICATION)</option>
                     <option value="Resolved">Resolved (TERMINATED)</option>
+                    <option value="Disputed">Disputed (REVIEW)</option>
                 </select>
             </div>
 
@@ -544,6 +582,7 @@
 
     <!-- Scripts -->
     <script src="js/nav.js"></script>
+    <script src="js/civic-data.js"></script>
     <script src="js/admin.js"></script>
 </body>
 </html>

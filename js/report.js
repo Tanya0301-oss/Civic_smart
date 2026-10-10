@@ -94,81 +94,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const description = document.getElementById('description').value.trim();
             const category = document.getElementById('category').value;
             const location = document.getElementById('location').value.trim();
+            const tehsil = document.getElementById('tehsil').value;
             const ward = document.getElementById('ward').value;
             const severityRadio = document.querySelector('input[name="severity"]:checked');
             const severity = severityRadio ? severityRadio.value : 'Medium';
             const citizenName = document.getElementById('citizenName').value.trim() || 'Anonymous Citizen';
 
-            if (!category || !title || !description || !location) {
+            if (!category || !tehsil || !ward || !title || !description || !location) {
                 alert('Please fill in all mandatory fields.');
                 return;
             }
 
-            // Department mapping
-            const deptMap = {
-                'Roads': 'Road Infrastructure & Maintenance',
-                'Water': 'Municipal Water & Sewerage Board',
-                'Waste': 'Solid Waste & Sanitation Department',
-                'Lighting': 'Electrical & Street Lighting Wing',
-                'Drainage': 'Stormwater Drainage Division',
-                'Electricity': 'State Electricity Board',
-                'Other': 'General Municipal Works'
-            };
-
-            // Calculate initial OS priority score
-            const severityBaseScores = { 'Low': 40, 'Medium': 60, 'High': 75, 'Critical': 90 };
-            const baseScore = severityBaseScores[severity] || 60;
-            const randomVariance = Math.floor(Math.random() * 5);
-            const calculatedScore = Math.min(99, baseScore + randomVariance);
-
-            // Generate Complaint ID
-            const newId = 'CS' + (1050 + Math.floor(Math.random() * 40));
-
-            const newComplaint = {
-                id: newId,
-                title: title,
-                description: description,
-                category: category,
-                location: location,
-                ward: ward,
-                severity: severity,
-                department: deptMap[category] || 'Municipal Works',
-                priorityScore: calculatedScore,
-                status: 'Reported',
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                duplicateCount: 1,
-                waitingDays: 0,
-                agingBoost: 0,
+            const newComplaint = CivicData.createComplaint({
+                title,
+                description,
+                category,
+                location,
+                tehsil,
+                ward,
+                severity,
                 citizen: citizenName,
-                photo: uploadedImageData || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&q=80&auto=format&fit=crop',
-                history: [
-                    {
-                        step: 'Reported',
-                        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' — ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        done: true
-                    },
-                    { step: 'Verified', date: 'Pending Verification', done: false },
-                    { step: 'Assigned', date: 'Awaiting Department Dispatch', done: false },
-                    { step: 'In Progress', date: '', done: false },
-                    { step: 'Resolved', date: '', done: false }
-                ]
-            };
-
-            // Store in localStorage
-            try {
-                const existing = JSON.parse(localStorage.getItem('civics_smart_complaints') || '[]');
-                existing.unshift(newComplaint);
-                localStorage.setItem('civics_smart_complaints', JSON.stringify(existing));
-            } catch (err) {
-                console.error('Storage error:', err);
-            }
+                photo: uploadedImageData
+            });
 
             // Update modal
-            document.getElementById('assignedComplaintId').textContent = '#' + newId;
-            document.getElementById('modalPriorityScore').textContent = `${calculatedScore} (${severity})`;
-            document.getElementById('modalDepartment').textContent = deptMap[category];
-            document.getElementById('trackLink').href = `track.html?id=${newId}`;
+            document.getElementById('assignedComplaintId').textContent = '#' + newComplaint.id;
+            document.getElementById('modalPriorityScore').textContent = `${newComplaint.priorityScore} (${severity})`;
+            document.getElementById('modalDepartment').textContent = newComplaint.department;
+            document.getElementById('trackLink').href = `track.html?id=${newComplaint.id}`;
 
             successModal.style.display = 'flex';
         });

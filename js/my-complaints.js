@@ -6,105 +6,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const statActive = document.getElementById('statActive');
     const statResolved = document.getElementById('statResolved');
 
-    // Default pre-loaded citizen complaints
-    const defaultComplaints = [
-        {
-            id: 'CS1024',
-            title: 'Large pothole near Sector 15 main market intersection',
-            category: 'Roads',
-            location: 'Near Sector 15 Market, Gate 2',
-            department: 'Road Infrastructure & Maintenance',
-            priorityScore: 87,
-            severity: 'High',
-            status: 'Assigned',
-            date: 'Sept 12, 2026',
-            duplicateCount: 12,
-            waitingDays: 4,
-            agingBoost: 8
-        },
-        {
-            id: 'CS1031',
-            title: 'Underground drinking water pipeline burst with heavy wastage',
-            category: 'Water',
-            location: 'MG Road, Opposite Metro Pillar 142',
-            department: 'Municipal Water & Sewerage Board',
-            priorityScore: 82,
-            severity: 'High',
-            status: 'In Progress',
-            date: 'Sept 13, 2026',
-            duplicateCount: 7,
-            waitingDays: 3,
-            agingBoost: 6
-        },
-        {
-            id: 'CS1009',
-            title: 'Garbage dump overflowing outside community park',
-            category: 'Waste',
-            location: 'Pocket B, Green Park Enclave',
-            department: 'Solid Waste & Sanitation Department',
-            priorityScore: 79,
-            severity: 'Medium',
-            status: 'Resolved',
-            date: 'Sept 08, 2026',
-            duplicateCount: 15,
-            waitingDays: 0,
-            agingBoost: 0
-        },
-        {
-            id: 'CS1045',
-            title: 'Street light pole wiring sparked and blacked out whole lane',
-            category: 'Lighting',
-            location: 'Lane 4, Subhash Nagar',
-            department: 'Electrical & Street Lighting Wing',
-            priorityScore: 65,
-            severity: 'Medium',
-            status: 'Resolved',
-            date: 'Sept 04, 2026',
-            duplicateCount: 4,
-            waitingDays: 0,
-            agingBoost: 0
-        }
-    ];
-
-    // Load custom user complaints
-    let customComplaints = [];
-    try {
-        customComplaints = JSON.parse(localStorage.getItem('civics_smart_complaints') || '[]');
-    } catch (e) {
-        console.error(e);
-    }
-
-    // Merge custom complaints at the beginning
-    const allComplaints = [...customComplaints, ...defaultComplaints];
-
     let currentFilter = 'all';
     let searchQuery = '';
 
-    function updateStats() {
-        const total = allComplaints.length;
-        const resolved = allComplaints.filter(c => c.status.toLowerCase() === 'resolved').length;
+    function updateStats(complaints) {
+        const total = complaints.length;
+        const resolved = complaints.filter(c => c.status.toLowerCase() === 'resolved').length;
         const active = total - resolved;
 
         if (statTotal) statTotal.textContent = total;
         if (statActive) statActive.textContent = active;
         if (statResolved) statResolved.textContent = resolved;
+
+        const allTab = document.querySelector('[data-filter="all"]');
+        if (allTab) allTab.textContent = `All (${total})`;
     }
 
     function renderComplaints() {
         if (!listContainer) return;
 
+        const allComplaints = CivicData.getComplaints();
+        updateStats(allComplaints);
+
         const filtered = allComplaints.filter(c => {
-            // Status filter
             if (currentFilter === 'active' && c.status.toLowerCase() === 'resolved') return false;
             if (currentFilter === 'resolved' && c.status.toLowerCase() !== 'resolved') return false;
 
-            // Search query
             if (searchQuery) {
-                const matchId = c.id.toLowerCase().includes(searchQuery);
-                const matchTitle = c.title.toLowerCase().includes(searchQuery);
-                const matchLocation = c.location.toLowerCase().includes(searchQuery);
-                const matchCat = c.category.toLowerCase().includes(searchQuery);
-                return matchId || matchTitle || matchLocation || matchCat;
+                const haystack = `${c.id} ${c.title} ${c.location} ${c.category} ${c.department}`.toLowerCase();
+                return haystack.includes(searchQuery);
             }
             return true;
         });
@@ -122,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         listContainer.innerHTML = filtered.map(c => {
             const isResolved = c.status.toLowerCase() === 'resolved';
-            const badgeClass = isResolved ? 'badge--resolved' : (c.priorityScore >= 80 ? 'badge--critical' : (c.priorityScore >= 70 ? 'badge--high' : 'badge--normal'));
+            const badgeClass = isResolved ? 'badge--resolved' : (c.priorityScore >= 85 ? 'badge--critical' : (c.priorityScore >= 70 ? 'badge--high' : 'badge--normal'));
             const statusClass = isResolved ? 'badge--resolved' : (c.status.toLowerCase() === 'in progress' ? 'badge--progress' : 'badge--high');
 
             return `
@@ -162,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    // Filter clicks
     filterTabs.forEach(tab => {
         tab.addEventListener('click', () => {
             filterTabs.forEach(t => t.classList.remove('active'));
@@ -172,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Search input
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             searchQuery = e.target.value.toLowerCase().trim();
@@ -180,6 +108,5 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    updateStats();
     renderComplaints();
 });
