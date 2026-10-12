@@ -125,4 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
     populateOfficers();
     officerSelect.addEventListener('change', renderAll);
     renderAll();
+
+    window.addEventListener('civic:data-synced', () => {
+        populateOfficers();
+        renderAll();
+    });
 });

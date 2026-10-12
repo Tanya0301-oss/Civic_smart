@@ -292,4 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     refreshAll();
+
+    window.addEventListener('civic:data-synced', () => {
+        refreshAll();
+    });
 });

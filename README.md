@@ -192,34 +192,32 @@ Example:
 - Duplicate citizen reports increase importance.
 - Older unresolved complaints receive aging boost to avoid starvation.
 
-## Current Limitations
+## PostgreSQL DBMS Backend Integration
 
-This is currently a college project demo, not a production application.
+Civic Smart now includes a complete production-grade **PostgreSQL DBMS** implementation:
 
-Limitations:
+- **Relational Tables**: `citizens`, `authorities`, `complaints`, `assignments`, `status_history`, and `notifications`
+- **Integrity**: Primary keys, foreign keys (`ON DELETE CASCADE` / `SET NULL`), and `CHECK` constraints
+- **Indexes**: Composite B-tree indexes for Multilevel Queue (MLQ) priority retrieval, ward analytics, and timelines
+- **Automated Triggers**: Dynamic priority score computation and auto-audit history logging
+- **Stored Procedures**: `sp_simulate_daily_aging()` (anti-starvation aging) and `sp_allocate_officer()` (workload-aware dispatch)
+- **Analytical Views**: `vw_priority_queue_mlq`, `vw_officer_workload`, `vw_ward_hotspots`, `vw_complaint_full_details`
+- **REST API Backends**: Complete Node.js (Express) and Python (Flask) backends in `backend/`
+- **1-Click Database Setup**: `setup_database.bat`
 
-- No real backend API
-- No real database server
-- No real authentication
-- No real SMS/email notifications
-- No real file upload storage
-- Authorization is simulated on the frontend
+For complete step-by-step setup instructions, please read:
+👉 **[POSTGRES_SETUP_GUIDE.md](file:///c:/Users/suhan/OneDrive/Desktop/Projects/Civic_smart/Civic_smart/POSTGRES_SETUP_GUIDE.md)**
 
-## Future Scope
+## Current Limitations & Fallback Mode
 
-Possible next improvements:
-
-- Add a real backend using Node.js, Python, Java, or PHP
-- Add MySQL/PostgreSQL database
-- Connect frontend to backend APIs
-- Add secure login for citizens, officers, and admins
-- Store uploaded complaint images on the server
-- Connect C++ scheduler output directly to backend workflow
-- Add real notification delivery
-- Add duplicate complaint detection using location and category
+The application supports dual-mode operation:
+- **Offline / Standalone Mode**: If PostgreSQL is not connected or the backend server is stopped, the app transparently operates using browser `localStorage` so the frontend demo never breaks.
+- **PostgreSQL Live Mode**: Once PostgreSQL and the backend API are started on `http://localhost:5000`, the topbar badge automatically displays `PostgreSQL Live: civic_smart_db` with live data sync.
 
 ## Team / Module
 
 Project: Civic Smart  
 Module: Operating Systems and DBMS Based Civic Grievance Management  
 Focus Area: Dehradun municipal complaint workflow  
+DBMS Module: PostgreSQL Relational Implementation & REST Backend  
+OS Module: C++ Multilevel Feedback Queue Scheduling Engine  

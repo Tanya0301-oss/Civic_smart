@@ -109,4 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderComplaints();
+
+    window.addEventListener('civic:data-synced', () => {
+        renderComplaints();
+    });
 });

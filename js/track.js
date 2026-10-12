@@ -222,4 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialId = urlParams.get('id') || 'CS1024';
     searchInput.value = initialId;
     renderComplaint(initialId);
+
+    window.addEventListener('civic:data-synced', () => {
+        const currentId = searchInput.value.trim() || initialId;
+        renderComplaint(currentId);
+    });
 });
