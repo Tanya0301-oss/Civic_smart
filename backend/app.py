@@ -7,6 +7,7 @@ Works with standard Python installations and embedded PostgreSQL/pgAdmin Python.
 import os
 import sys
 import json
+import subprocess
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, make_response
 
@@ -48,6 +49,8 @@ def load_env_file():
 load_env_file()
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SCHEDULER_CPP = os.path.join(ROOT_DIR, "civic_os_engine.cpp")
+SCHEDULER_EXE = os.path.join(ROOT_DIR, "civic_os_engine.exe" if sys.platform == "win32" else "civic_os_engine")
 app = Flask(__name__, static_folder=ROOT_DIR, static_url_path="")
 
 @app.route("/")
@@ -151,6 +154,70 @@ def map_complaint(row):
         "assignedOfficerId": row.get("assigned_officer_id"),
         "resolvedAt": row.get("resolved_at").isoformat() if hasattr(row.get("resolved_at"), "isoformat") else None
     }
+
+def ensure_scheduler_executable():
+    source_missing = not os.path.exists(SCHEDULER_CPP)
+    if source_missing:
+        raise RuntimeError("C++ scheduler source file civic_os_engine.cpp was not found.")
+
+    needs_build = not os.path.exists(SCHEDULER_EXE)
+    if not needs_build:
+        needs_build = os.path.getmtime(SCHEDULER_CPP) > os.path.getmtime(SCHEDULER_EXE)
+
+    if not needs_build:
+        return SCHEDULER_EXE
+
+    compiler = os.getenv("CXX", "g++")
+    result = subprocess.run(
+        [compiler, "-std=c++11", SCHEDULER_CPP, "-o", SCHEDULER_EXE],
+        cwd=ROOT_DIR,
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to compile C++ scheduler: {result.stderr or result.stdout}")
+    return SCHEDULER_EXE
+
+def scheduler_payload_from_row(row):
+    created_at = row.get("created_at")
+    deadline = row.get("assignment_deadline")
+    return {
+        "id": row.get("complaint_id"),
+        "title": row.get("title"),
+        "category": row.get("category"),
+        "location": row.get("location"),
+        "ward": row.get("ward"),
+        "department": row.get("department"),
+        "severityBase": row.get("severity_base"),
+        "duplicateCount": row.get("duplicate_count"),
+        "waitingDays": row.get("waiting_days"),
+        "status": row.get("status"),
+        "processState": row.get("process_state"),
+        "createdAt": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at or ""),
+        "slaDeadline": deadline.isoformat() if hasattr(deadline, "isoformat") else str(deadline or "")
+    }
+
+def run_cpp_scheduler(eligible_rows):
+    executable = ensure_scheduler_executable()
+    payload = [scheduler_payload_from_row(row) for row in eligible_rows]
+    result = subprocess.run(
+        [executable, "--schedule-json"],
+        cwd=ROOT_DIR,
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"C++ scheduler failed: {result.stderr or result.stdout}")
+    try:
+        decision = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"C++ scheduler returned invalid JSON: {exc}") from exc
+    if not decision.get("ok"):
+        raise RuntimeError(decision.get("error", "C++ scheduler returned an error."))
+    return decision
 
 @app.route("/api/health", methods=["GET"])
 def health():
@@ -461,6 +528,133 @@ def simulate_aging():
         return jsonify({"ok": True, "activeCount": cnt})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scheduler/run", methods=["POST"])
+def run_scheduler():
+    data = request.json or {}
+    actor = data.get("actor", "Authority Console")
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT 
+                c.*,
+                asn.deadline AS assignment_deadline
+            FROM complaints c
+            LEFT JOIN assignments asn
+                ON c.complaint_id = asn.complaint_id
+               AND asn.state NOT IN ('REJECTED', 'COMPLETED')
+            WHERE c.status IN ('Reported', 'Verified')
+              AND c.assigned_officer_id IS NULL
+              AND asn.assignment_id IS NULL
+            ORDER BY c.priority_score DESC, c.created_at ASC
+        """)
+        eligible = cur.fetchall()
+
+        if not eligible:
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "NO_ELIGIBLE_COMPLAINTS",
+                "message": "No unassigned reported or verified complaints are ready for scheduling."
+            }), 409
+
+        decision = run_cpp_scheduler(eligible)
+        selected = decision.get("selected")
+        if not selected:
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "SCHEDULER_SELECTED_NONE",
+                "decision": decision
+            }), 409
+
+        eligible_ids = {row["complaint_id"] for row in eligible}
+        selected_id = str(selected.get("id", "")).upper().replace("#", "").strip()
+        if selected_id not in eligible_ids:
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "SCHEDULER_SELECTED_INELIGIBLE_COMPLAINT",
+                "selected": selected
+            }), 409
+
+        cur.execute(
+            """SELECT * FROM complaints
+               WHERE complaint_id = %s
+                 AND status IN ('Reported', 'Verified')
+                 AND assigned_officer_id IS NULL
+                 AND NOT EXISTS (
+                     SELECT 1 FROM assignments
+                     WHERE assignments.complaint_id = complaints.complaint_id
+                       AND assignments.state NOT IN ('REJECTED', 'COMPLETED')
+                 )
+               FOR UPDATE""",
+            (selected_id,)
+        )
+        still_eligible = cur.fetchone()
+        if not still_eligible:
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "COMPLAINT_NO_LONGER_ELIGIBLE",
+                "selected": selected
+            }), 409
+
+        cur.execute("CALL sp_allocate_officer(%s, %s)", (selected_id, actor))
+        cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (selected_id,))
+        updated = cur.fetchone()
+        if not updated or not updated.get("assigned_officer_id"):
+            conn.rollback()
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "NO_ELIGIBLE_OFFICER",
+                "message": f"Scheduler selected {selected_id}, but no eligible officer was available.",
+                "selected": selected
+            }), 409
+
+        cur.execute(
+            """INSERT INTO status_history (complaint_id, actor, role, action, from_status, to_status, message)
+               VALUES (%s, %s, 'SYSTEM', 'C++ Scheduler Decision', %s, %s, %s)""",
+            (
+                selected_id,
+                "OS Scheduler",
+                still_eligible["status"],
+                updated["status"],
+                selected.get("reason", "Complaint selected by C++ priority scheduler.")
+            )
+        )
+        conn.commit()
+
+        cur.execute("SELECT * FROM assignments WHERE complaint_id = %s ORDER BY created_at DESC LIMIT 1", (selected_id,))
+        assignment = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "ok": True,
+            "eligibleCount": decision.get("eligibleCount"),
+            "policy": decision.get("policy"),
+            "selected": selected,
+            "complaint": map_complaint(updated),
+            "assignment": assignment
+        })
+    except Exception as e:
+        try:
+            conn.rollback()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route("/api/scheduler/mlq", methods=["GET"])
 def get_mlq():

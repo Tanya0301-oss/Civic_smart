@@ -265,12 +265,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const recalcBtn = document.getElementById('recalcQueueBtn');
     if (recalcBtn) {
-        recalcBtn.addEventListener('click', () => {
+        recalcBtn.addEventListener('click', async () => {
             recalcBtn.innerHTML = 'Scheduling...';
+            recalcBtn.disabled = true;
+
+            if (window.CivicAPI && CivicAPI.isDatabaseConnected()) {
+                try {
+                    const result = await CivicAPI.runScheduler('Authority Console');
+                    refreshAll();
+                    if (result.ok && result.selected) {
+                        recalcBtn.innerHTML = `Assigned #${result.selected.id}`;
+                    } else {
+                        recalcBtn.innerHTML = result.reason === 'NO_ELIGIBLE_OFFICER' ? 'No Officer Available' : 'No Eligible Case';
+                    }
+                } catch (err) {
+                    console.warn('[Admin] Integrated scheduler failed:', err);
+                    recalcBtn.innerHTML = 'Scheduler Failed';
+                }
+                setTimeout(() => {
+                    recalcBtn.innerHTML = 'Re-run Scheduler';
+                    recalcBtn.disabled = false;
+                }, 2200);
+                return;
+            }
+
             setTimeout(() => {
                 refreshAll();
-                recalcBtn.innerHTML = 'Scheduler Complete';
-                setTimeout(() => { recalcBtn.innerHTML = 'Re-run Scheduler'; }, 1800);
+                recalcBtn.innerHTML = 'Offline Queue Refreshed';
+                setTimeout(() => {
+                    recalcBtn.innerHTML = 'Re-run Scheduler';
+                    recalcBtn.disabled = false;
+                }, 1800);
             }, 300);
         });
     }

@@ -2,47 +2,46 @@
  * ============================================================================
  * CIVIC SMART - OS SCHEDULING ENGINE (C++ Backend)
  * Project Code: OSDBMS-V-2026-T227
- * Team: City Solvers | Member Focus: OS / Scheduling Logic
+ * Team: City Solvers | Module: OS / Scheduling Logic
  * ============================================================================
- * 
- * This program implements the Operating System concepts described in the report:
- * 1. Process Control Block (PCB): Represented by `struct ComplaintPCB`.
- * 2. Process States: NEW, READY, RUNNING, WAITING, TERMINATED.
- * 3. Priority Scheduling Algorithm:
- *       Priority = Base Severity + (Duplicates * Boost) + (Waiting Time * Aging Rate)
- * 4. Multilevel Feedback Queue (MLQ / MLFQ):
- *       - Queue 0 (Critical Tier):  Priority >= 85 (Preemptive dispatch)
- *       - Queue 1 (High Tier):      70 <= Priority < 85 (48h SLA)
- *       - Queue 2 (Normal Tier):    Priority < 70 (Subject to Aging promotion)
- * 5. Aging Mechanism: Prevents starvation of low-priority civic issues.
- * 6. Dispatcher & State Transitions: Simulates CPU/Workforce assignment.
- * 7. JSON Export / Import: For direct integration with the Web Frontend & DBMS.
+ *
+ * The engine now supports two modes:
+ *   1. Interactive console simulation for the OS project demonstration.
+ *   2. Batch JSON scheduling mode for Flask/PostgreSQL integration:
+ *        civic_os_engine.exe --schedule-json
+ *
+ * Scheduling policy:
+ *   Priority = min(99, base severity + duplicate boost + ready aging boost
+ *                      + SLA deadline urgency)
+ *
+ * Tie-breaking is deterministic:
+ *   priority desc, severity desc, earlier SLA deadline, longer ready wait,
+ *   earlier creation time, complaint id asc.
  * ============================================================================
  */
 
-#include <iostream>
-#include <vector>
-#include <string>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
 #include <algorithm>
+#include <cctype>
 #include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 using namespace std;
 
-// ----------------------------------------------------------------------------
-// 1. PROCESS STATES (Operating Systems Lifecycle)
-// ----------------------------------------------------------------------------
 enum class ProcessState {
-    NEW,        // Complaint just reported by citizen
-    READY,      // Evaluated and waiting in the Multilevel Queue
-    RUNNING,    // Assigned to field team / work actively in progress
-    WAITING,    // Blocked on resources (spare parts, heavy machinery, road closure)
-    TERMINATED  // Work completed, audited, and resolved
+    NEW,
+    READY,
+    RUNNING,
+    WAITING,
+    TERMINATED
 };
 
-// Helper function to convert enum to string
 string stateToString(ProcessState state) {
     switch (state) {
         case ProcessState::NEW:        return "NEW";
@@ -54,9 +53,56 @@ string stateToString(ProcessState state) {
     }
 }
 
-// ----------------------------------------------------------------------------
-// 2. AUDIT TRAIL / STATUS HISTORY ENTRY (DBMS + OS Audit)
-// ----------------------------------------------------------------------------
+string jsonEscape(const string& value) {
+    ostringstream out;
+    for (char ch : value) {
+        switch (ch) {
+            case '"':  out << "\\\""; break;
+            case '\\': out << "\\\\"; break;
+            case '\b': out << "\\b"; break;
+            case '\f': out << "\\f"; break;
+            case '\n': out << "\\n"; break;
+            case '\r': out << "\\r"; break;
+            case '\t': out << "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(ch) < 0x20) {
+                    out << "\\u" << hex << setw(4) << setfill('0') << static_cast<int>(ch);
+                } else {
+                    out << ch;
+                }
+        }
+    }
+    return out.str();
+}
+
+string nowTimestamp() {
+    time_t now = time(0);
+    char buf[80];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    return string(buf);
+}
+
+time_t parseIsoTime(const string& text) {
+    if (text.empty()) return 0;
+
+    tm value = {};
+    int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+    int matched = sscanf(text.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    if (matched < 3) {
+        matched = sscanf(text.c_str(), "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    }
+    if (matched < 3) return 0;
+
+    value.tm_year = year - 1900;
+    value.tm_mon = month - 1;
+    value.tm_mday = day;
+    value.tm_hour = hour;
+    value.tm_min = minute;
+    value.tm_sec = second;
+    value.tm_isdst = -1;
+    return mktime(&value);
+}
+
 struct StatusHistoryEntry {
     string fromState;
     string toState;
@@ -64,201 +110,217 @@ struct StatusHistoryEntry {
     string remarks;
 };
 
-// ----------------------------------------------------------------------------
-// 3. PROCESS CONTROL BLOCK (PCB)
-// In an OS, each process has a PCB. In Civic Smart, each complaint is a PCB.
-// ----------------------------------------------------------------------------
 struct ComplaintPCB {
-    string id;              // Process ID / Complaint ID (e.g., "CS1024")
-    string title;           // Problem summary
-    string category;        // Civic category (Roads, Water, Waste, Lighting, Drainage)
-    string location;        // Landmark / GPS coords
-    string ward;            // Municipal zone
-    string department;      // Assigned municipal department
-    
-    // Priority calculation attributes
-    int baseSeverity;       // Base score: Low(40), Medium(60), High(75), Critical(90)
-    int duplicateCount;     // Number of citizen reports merged for this same issue
-    int duplicateBoost;     // Boost added due to duplicate reports (+2 per duplicate)
-    int waitingDays;        // Number of days complaint has been pending
-    int agingRate;          // Aging points gained per day pending (default: 2 pts/day)
-    int agingBoost;         // Current aging boost (waitingDays * agingRate)
-    int priorityScore;      // Total dynamic priority score (capped at 99)
-    
-    // Scheduling queue placement
-    int queueLevel;         // 0: Critical, 1: High, 2: Normal
-    ProcessState state;     // Current process state
-    
-    vector<StatusHistoryEntry> history; // Audit log of state transitions
+    string id;
+    string title;
+    string category;
+    string location;
+    string ward;
+    string department;
+    string createdAt;
+    string slaDeadline;
+    string selectionReason;
 
-    // Constructor
-    ComplaintPCB(string _id = "", string _title = "", string _category = "", 
-                 string _location = "", string _ward = "", string _dept = "", 
-                 int _baseSev = 60, int _duplicates = 1, int _waitDays = 0)
-        : id(_id), title(_title), category(_category), location(_location), 
-          ward(_ward), department(_dept), baseSeverity(_baseSev), 
-          duplicateCount(_duplicates), waitingDays(_waitDays), 
-          agingRate(2), state(ProcessState::NEW) {
-        
+    int baseSeverity;
+    int duplicateCount;
+    int duplicateBoost;
+    int totalAgeDays;
+    int readyWaitDays;
+    int blockedDays;
+    int agingRate;
+    int agingBoost;
+    int deadlineUrgencyBoost;
+    int priorityScore;
+    int queueLevel;
+    ProcessState state;
+
+    vector<StatusHistoryEntry> history;
+
+    ComplaintPCB(string _id = "", string _title = "", string _category = "",
+                 string _location = "", string _ward = "", string _dept = "",
+                 int _baseSev = 60, int _duplicates = 1, int _readyDays = 0,
+                 string _createdAt = "", string _deadline = "",
+                 ProcessState _state = ProcessState::NEW)
+        : id(_id), title(_title), category(_category), location(_location),
+          ward(_ward), department(_dept), createdAt(_createdAt), slaDeadline(_deadline),
+          baseSeverity(_baseSev), duplicateCount(_duplicates), duplicateBoost(0),
+          totalAgeDays(_readyDays), readyWaitDays(_readyDays), blockedDays(0),
+          agingRate(2), agingBoost(0), deadlineUrgencyBoost(0), priorityScore(0),
+          queueLevel(2), state(_state) {
         calculatePriority();
-        logTransition("NONE", "NEW", "Complaint created and initialized in PCB table.");
+        logTransition("NONE", stateToString(state), "Complaint initialized in PCB table.");
     }
 
-    // Dynamic Priority Calculation Formula:
-    // Priority = Base Severity + Duplicate Boost + Aging Boost
-    void calculatePriority() {
-        duplicateBoost = (duplicateCount > 1) ? (duplicateCount - 1) * 2 : 0;
-        agingBoost = waitingDays * agingRate;
-        
-        priorityScore = baseSeverity + duplicateBoost + agingBoost;
-        if (priorityScore > 99) priorityScore = 99; // Cap at 99
+    void calculatePriority(time_t referenceTime = time(0)) {
+        duplicateBoost = min(20, max(0, duplicateCount - 1) * 2);
+        agingBoost = max(0, readyWaitDays) * agingRate;
+        deadlineUrgencyBoost = 0;
 
-        // Multilevel Queue Assignment:
-        if (priorityScore >= 85) {
-            queueLevel = 0; // Critical Tier
-        } else if (priorityScore >= 70) {
-            queueLevel = 1; // High Priority Tier
-        } else {
-            queueLevel = 2; // Normal Priority Tier
+        time_t due = parseIsoTime(slaDeadline);
+        if (due > 0) {
+            double hoursRemaining = difftime(due, referenceTime) / 3600.0;
+            if (hoursRemaining <= 0) deadlineUrgencyBoost = 20;
+            else if (hoursRemaining <= 24) deadlineUrgencyBoost = 15;
+            else if (hoursRemaining <= 48) deadlineUrgencyBoost = 10;
+            else if (hoursRemaining <= 72) deadlineUrgencyBoost = 5;
         }
+
+        priorityScore = min(99, baseSeverity + duplicateBoost + agingBoost + deadlineUrgencyBoost);
+
+        if (priorityScore >= 85) queueLevel = 0;
+        else if (priorityScore >= 70) queueLevel = 1;
+        else queueLevel = 2;
     }
 
-    // State Transition Logger
     void logTransition(string from, string to, string remark) {
-        time_t now = time(0);
-        char buf[80];
-        strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
-        history.push_back({from, to, string(buf), remark});
+        history.push_back({from, to, nowTimestamp(), remark});
     }
 
-    // Update process state
     void setState(ProcessState newState, string remarks = "") {
         string oldStr = stateToString(state);
-        string newStr = stateToString(newState);
         state = newState;
-        logTransition(oldStr, newStr, remarks);
+        logTransition(oldStr, stateToString(newState), remarks);
     }
 
-    // Age complaint by 1 day (Anti-Starvation Mechanism)
-    void age() {
-        if (state != ProcessState::TERMINATED) {
-            waitingDays++;
-            calculatePriority();
-        }
+    void ageOneDay() {
+        if (state == ProcessState::TERMINATED) return;
+        totalAgeDays++;
+        if (state == ProcessState::READY) readyWaitDays++;
+        if (state == ProcessState::WAITING) blockedDays++;
+        calculatePriority();
     }
 };
 
-// ----------------------------------------------------------------------------
-// 4. MULTILEVEL FEEDBACK QUEUE (MLFQ) SCHEDULER
-// ----------------------------------------------------------------------------
+bool schedulerComesBefore(const ComplaintPCB& a, const ComplaintPCB& b) {
+    if (a.priorityScore != b.priorityScore) return a.priorityScore > b.priorityScore;
+    if (a.baseSeverity != b.baseSeverity) return a.baseSeverity > b.baseSeverity;
+
+    time_t aDue = parseIsoTime(a.slaDeadline);
+    time_t bDue = parseIsoTime(b.slaDeadline);
+    if (aDue != bDue) {
+        if (aDue == 0) return false;
+        if (bDue == 0) return true;
+        return aDue < bDue;
+    }
+
+    if (a.readyWaitDays != b.readyWaitDays) return a.readyWaitDays > b.readyWaitDays;
+
+    time_t aCreated = parseIsoTime(a.createdAt);
+    time_t bCreated = parseIsoTime(b.createdAt);
+    if (aCreated != bCreated) {
+        if (aCreated == 0) return false;
+        if (bCreated == 0) return true;
+        return aCreated < bCreated;
+    }
+
+    return a.id < b.id;
+}
+
 class CivicScheduler {
 private:
-    vector<ComplaintPCB> queue0; // Queue 0: Critical (Score >= 85)
-    vector<ComplaintPCB> queue1; // Queue 1: High (70 <= Score < 85)
-    vector<ComplaintPCB> queue2; // Queue 2: Normal (Score < 70)
-    vector<ComplaintPCB> runningList;    // Actively dispatched / in progress
-    vector<ComplaintPCB> waitingList;    // Blocked on equipment/materials
-    vector<ComplaintPCB> terminatedList; // Successfully resolved
+    vector<ComplaintPCB> queue0;
+    vector<ComplaintPCB> queue1;
+    vector<ComplaintPCB> queue2;
+    vector<ComplaintPCB> runningList;
+    vector<ComplaintPCB> waitingList;
+    vector<ComplaintPCB> terminatedList;
 
 public:
-    CivicScheduler() {}
-
-    // Add a new complaint to the scheduler
     void addComplaint(ComplaintPCB pcb) {
-        pcb.setState(ProcessState::READY, "Placed into Ready Queue.");
+        if (pcb.state == ProcessState::NEW) {
+            pcb.setState(ProcessState::READY, "Placed into Ready Queue.");
+        }
         insertIntoQueue(pcb);
     }
 
-    // Place a PCB into its respective queue based on queueLevel
     void insertIntoQueue(const ComplaintPCB& pcb) {
-        if (pcb.queueLevel == 0) {
-            queue0.push_back(pcb);
-            sortQueue(queue0);
-        } else if (pcb.queueLevel == 1) {
-            queue1.push_back(pcb);
-            sortQueue(queue1);
-        } else {
-            queue2.push_back(pcb);
-            sortQueue(queue2);
+        if (pcb.state == ProcessState::WAITING) {
+            waitingList.push_back(pcb);
+            return;
         }
+        if (pcb.state == ProcessState::RUNNING) {
+            runningList.push_back(pcb);
+            return;
+        }
+        if (pcb.state == ProcessState::TERMINATED) {
+            terminatedList.push_back(pcb);
+            return;
+        }
+
+        if (pcb.queueLevel == 0) queue0.push_back(pcb);
+        else if (pcb.queueLevel == 1) queue1.push_back(pcb);
+        else queue2.push_back(pcb);
+        resortAllQueues();
     }
 
-    // Sort queue by Priority Score descending (Priority Scheduling)
-    void sortQueue(vector<ComplaintPCB>& q) {
-        sort(q.begin(), q.end(), [](const ComplaintPCB& a, const ComplaintPCB& b) {
-            return a.priorityScore > b.priorityScore;
-        });
+    void resortAllQueues() {
+        sort(queue0.begin(), queue0.end(), schedulerComesBefore);
+        sort(queue1.begin(), queue1.end(), schedulerComesBefore);
+        sort(queue2.begin(), queue2.end(), schedulerComesBefore);
     }
 
-    // ------------------------------------------------------------------------
-    // OS AGING MECHANISM:
-    // Increments waiting time of all ready complaints. If priority score passes
-    // a threshold, the task is dynamically promoted to a higher queue tier.
-    // ------------------------------------------------------------------------
     void simulateAgingDay() {
         cout << "\n>>> [OS SCHEDULER] Simulating 24 Hours Passage (Aging Applied)... <<<\n";
-        
-        // Collect all ready complaints from all queues
-        vector<ComplaintPCB> allReady;
-        for (auto& c : queue0) { c.age(); allReady.push_back(c); }
-        for (auto& c : queue1) { c.age(); allReady.push_back(c); }
-        for (auto& c : queue2) { c.age(); allReady.push_back(c); }
+        vector<ComplaintPCB> ready;
+        ready.insert(ready.end(), queue0.begin(), queue0.end());
+        ready.insert(ready.end(), queue1.begin(), queue1.end());
+        ready.insert(ready.end(), queue2.begin(), queue2.end());
 
-        // Clear existing queues and re-sort / re-tier
         queue0.clear();
         queue1.clear();
         queue2.clear();
 
-        for (auto& c : allReady) {
+        for (auto& c : ready) {
+            c.ageOneDay();
             insertIntoQueue(c);
         }
-
-        // Also age waiting processes
-        for (auto& c : waitingList) {
-            c.age();
-        }
+        for (auto& c : waitingList) c.ageOneDay();
     }
 
-    // ------------------------------------------------------------------------
-    // DISPATCHER:
-    // Preemptive priority dispatch. Always serves Queue 0 first, then Queue 1,
-    // then Queue 2 (Multilevel Priority Dispatching).
-    // ------------------------------------------------------------------------
-    bool dispatchNext() {
-        ComplaintPCB* target = nullptr;
-        int fromQueue = -1;
+    bool selectNext(ComplaintPCB& selected) {
+        vector<ComplaintPCB>* queues[] = {&queue0, &queue1, &queue2};
+        int bestQueue = -1;
+        size_t bestIndex = 0;
 
-        if (!queue0.empty()) {
-            target = &queue0.front();
-            fromQueue = 0;
-        } else if (!queue1.empty()) {
-            target = &queue1.front();
-            fromQueue = 1;
-        } else if (!queue2.empty()) {
-            target = &queue2.front();
-            fromQueue = 2;
+        for (int i = 0; i < 3; ++i) {
+            for (size_t j = 0; j < queues[i]->size(); ++j) {
+                if (bestQueue < 0 || schedulerComesBefore((*queues[i])[j], (*queues[bestQueue])[bestIndex])) {
+                    bestQueue = i;
+                    bestIndex = j;
+                }
+            }
         }
 
-        if (target == nullptr) {
+        if (bestQueue < 0) return false;
+
+        selected = (*queues[bestQueue])[bestIndex];
+        selected.selectionReason =
+            "Selected by priority policy: score=" + to_string(selected.priorityScore) +
+            ", severity=" + to_string(selected.baseSeverity) +
+            ", duplicateBoost=" + to_string(selected.duplicateBoost) +
+            ", readyAgingBoost=" + to_string(selected.agingBoost) +
+            ", deadlineBoost=" + to_string(selected.deadlineUrgencyBoost) +
+            ", queue=" + to_string(selected.queueLevel) + ".";
+        queues[bestQueue]->erase(queues[bestQueue]->begin() + bestIndex);
+        return true;
+    }
+
+    bool dispatchNext() {
+        ComplaintPCB dispatched;
+        if (!selectNext(dispatched)) {
             cout << "No pending complaints ready for dispatch.\n";
             return false;
         }
 
-        ComplaintPCB dispatched = *target;
-        if (fromQueue == 0) queue0.erase(queue0.begin());
-        else if (fromQueue == 1) queue1.erase(queue1.begin());
-        else if (fromQueue == 2) queue2.erase(queue2.begin());
-
-        dispatched.setState(ProcessState::RUNNING, "Dispatched to Municipal Field Team (Lane " + to_string(fromQueue) + ").");
+        dispatched.setState(ProcessState::RUNNING, "Dispatched to Municipal Field Team.");
         runningList.push_back(dispatched);
-
-        cout << "\n[DISPATCHER] Dispatched Complaint #" << dispatched.id 
-             << " (\"" << dispatched.title << "\") from Queue " << fromQueue 
-             << " | Priority Score: " << dispatched.priorityScore << " -> State: RUNNING\n";
+        cout << "\n[DISPATCHER] Dispatched Complaint #" << dispatched.id
+             << " (\"" << dispatched.title << "\") from Queue " << dispatched.queueLevel
+             << " | Priority Score: " << dispatched.priorityScore
+             << " -> State: RUNNING\n";
         return true;
     }
 
-    // Transition a RUNNING complaint to WAITING (Blocked on materials/parts)
     bool blockComplaint(string complaintId, string reason) {
         for (auto it = runningList.begin(); it != runningList.end(); ++it) {
             if (it->id == complaintId) {
@@ -274,7 +336,6 @@ public:
         return false;
     }
 
-    // Transition a WAITING complaint back to READY
     bool unblockComplaint(string complaintId) {
         for (auto it = waitingList.begin(); it != waitingList.end(); ++it) {
             if (it->id == complaintId) {
@@ -290,34 +351,26 @@ public:
         return false;
     }
 
-    // Resolve a complaint (RUNNING -> TERMINATED)
     bool resolveComplaint(string complaintId, string auditNote = "Field verification completed.") {
-        for (auto it = runningList.begin(); it != runningList.end(); ++it) {
-            if (it->id == complaintId) {
-                ComplaintPCB p = *it;
-                runningList.erase(it);
-                p.setState(ProcessState::TERMINATED, auditNote);
-                terminatedList.push_back(p);
-                cout << "\n[RESOLUTION AUDIT] Complaint #" << p.id << " marked TERMINATED / RESOLVED.\n";
-                return true;
+        auto resolveFrom = [&](vector<ComplaintPCB>& list) {
+            for (auto it = list.begin(); it != list.end(); ++it) {
+                if (it->id == complaintId) {
+                    ComplaintPCB p = *it;
+                    list.erase(it);
+                    p.setState(ProcessState::TERMINATED, auditNote);
+                    terminatedList.push_back(p);
+                    cout << "\n[RESOLUTION AUDIT] Complaint #" << p.id << " marked TERMINATED / RESOLVED.\n";
+                    return true;
+                }
             }
-        }
-        // Also check waiting list
-        for (auto it = waitingList.begin(); it != waitingList.end(); ++it) {
-            if (it->id == complaintId) {
-                ComplaintPCB p = *it;
-                waitingList.erase(it);
-                p.setState(ProcessState::TERMINATED, auditNote);
-                terminatedList.push_back(p);
-                cout << "\n[RESOLUTION AUDIT] Complaint #" << p.id << " marked TERMINATED / RESOLVED.\n";
-                return true;
-            }
-        }
+            return false;
+        };
+
+        if (resolveFrom(runningList) || resolveFrom(waitingList)) return true;
         cout << "Complaint #" << complaintId << " not found in RUNNING or WAITING lists.\n";
         return false;
     }
 
-    // Add duplicate report to an existing complaint (Duplicate Clustering)
     bool addDuplicateReport(string complaintId) {
         auto checkAndBoost = [&](vector<ComplaintPCB>& q) {
             for (auto& c : q) {
@@ -330,44 +383,38 @@ public:
             return false;
         };
 
-        if (checkAndBoost(queue0) || checkAndBoost(queue1) || checkAndBoost(queue2) || 
+        if (checkAndBoost(queue0) || checkAndBoost(queue1) || checkAndBoost(queue2) ||
             checkAndBoost(runningList) || checkAndBoost(waitingList)) {
-            cout << "\n[DUPLICATE DETECTOR] Duplicate linked to #" << complaintId 
+            cout << "\n[DUPLICATE DETECTOR] Duplicate linked to #" << complaintId
                  << "! Duplicate boost applied.\n";
-            // Re-sort queues
-            resortAllQueues();
+            vector<ComplaintPCB> ready;
+            ready.insert(ready.end(), queue0.begin(), queue0.end());
+            ready.insert(ready.end(), queue1.begin(), queue1.end());
+            ready.insert(ready.end(), queue2.begin(), queue2.end());
+            queue0.clear();
+            queue1.clear();
+            queue2.clear();
+            for (auto& c : ready) insertIntoQueue(c);
             return true;
         }
         cout << "Complaint #" << complaintId << " not found.\n";
         return false;
     }
 
-    void resortAllQueues() {
-        vector<ComplaintPCB> all;
-        all.insert(all.end(), queue0.begin(), queue0.end());
-        all.insert(all.end(), queue1.begin(), queue1.end());
-        all.insert(all.end(), queue2.begin(), queue2.end());
-        queue0.clear(); queue1.clear(); queue2.clear();
-        for (auto& c : all) insertIntoQueue(c);
-    }
-
-    // ------------------------------------------------------------------------
-    // DISPLAY: Print Multilevel Queues in ASCII Table
-    // ------------------------------------------------------------------------
     void printQueueStatus() const {
-        cout << "\n" << string(85, '=') << "\n";
+        cout << "\n" << string(96, '=') << "\n";
         cout << "              CIVIC SMART - MULTILEVEL QUEUE STATUS (OS SCHEDULER)\n";
-        cout << string(85, '=') << "\n";
+        cout << string(96, '=') << "\n";
 
         auto printHeader = []() {
             cout << left << setw(10) << "ID"
                  << setw(26) << "Title"
                  << setw(16) << "Category"
                  << setw(8)  << "Score"
-                 << setw(12) << "State"
-                 << setw(13) << "Wait/Aging"
+                 << setw(8)  << "Queue"
+                 << setw(16) << "Ready/Blocked"
                  << "\n";
-            cout << string(85, '-') << "\n";
+            cout << string(96, '-') << "\n";
         };
 
         auto printRow = [](const ComplaintPCB& c) {
@@ -376,103 +423,247 @@ public:
                  << setw(26) << shortTitle
                  << setw(16) << c.category
                  << setw(8)  << c.priorityScore
-                 << setw(12) << stateToString(c.state)
-                 << setw(13) << (to_string(c.waitingDays) + "d (+" + to_string(c.agingBoost) + ")")
+                 << setw(8)  << c.queueLevel
+                 << setw(16) << (to_string(c.readyWaitDays) + "d / " + to_string(c.blockedDays) + "d")
                  << "\n";
         };
 
-        cout << "\n[QUEUE 0 - CRITICAL TIER (Score >= 85) | PREEMPTIVE DISPATCH]:\n";
-        printHeader();
-        if (queue0.empty()) cout << "  (Queue is currently empty)\n";
-        for (const auto& c : queue0) printRow(c);
+        auto printQueue = [&](const string& label, const vector<ComplaintPCB>& q) {
+            cout << "\n[" << label << "]:\n";
+            printHeader();
+            if (q.empty()) cout << "  (Queue is currently empty)\n";
+            for (const auto& c : q) printRow(c);
+        };
 
-        cout << "\n[QUEUE 1 - HIGH PRIORITY TIER (70 <= Score < 85) | 48H SLA]:\n";
-        printHeader();
-        if (queue1.empty()) cout << "  (Queue is currently empty)\n";
-        for (const auto& c : queue1) printRow(c);
-
-        cout << "\n[QUEUE 2 - NORMAL TIER (Score < 70) | AGING APPLIED]:\n";
-        printHeader();
-        if (queue2.empty()) cout << "  (Queue is currently empty)\n";
-        for (const auto& c : queue2) printRow(c);
-
-        cout << "\n[ACTIVELY RUNNING / IN PROGRESS (" << runningList.size() << ")]: \n";
-        printHeader();
-        if (runningList.empty()) cout << "  (No field teams actively running)\n";
-        for (const auto& c : runningList) printRow(c);
-
-        cout << "\n[WAITING / BLOCKED (" << waitingList.size() << ")]: \n";
-        printHeader();
-        if (waitingList.empty()) cout << "  (No complaints currently waiting on resources)\n";
-        for (const auto& c : waitingList) printRow(c);
-
-        cout << "\n[TERMINATED / RESOLVED (" << terminatedList.size() << ")]: \n";
-        printHeader();
-        if (terminatedList.empty()) cout << "  (No complaints resolved yet)\n";
-        for (const auto& c : terminatedList) printRow(c);
-
-        cout << string(85, '=') << "\n";
+        printQueue("QUEUE 0 - CRITICAL TIER (Score >= 85)", queue0);
+        printQueue("QUEUE 1 - HIGH PRIORITY TIER (70 <= Score < 85)", queue1);
+        printQueue("QUEUE 2 - NORMAL TIER (Score < 70)", queue2);
+        printQueue("ACTIVELY RUNNING / IN PROGRESS", runningList);
+        printQueue("WAITING / BLOCKED", waitingList);
+        printQueue("TERMINATED / RESOLVED", terminatedList);
+        cout << string(96, '=') << "\n";
     }
 
-    // ------------------------------------------------------------------------
-    // JSON EXPORT: For Web Frontend / DBMS Bridge
-    // ------------------------------------------------------------------------
-    void exportToJSON(const string& filename) const {
-        ofstream out(filename);
-        if (!out.is_open()) {
-            cerr << "Error: Could not open " << filename << " for writing.\n";
-            return;
-        }
-
-        vector<ComplaintPCB> all;
-        all.insert(all.end(), queue0.begin(), queue0.end());
-        all.insert(all.end(), queue1.begin(), queue1.end());
-        all.insert(all.end(), queue2.begin(), queue2.end());
-        all.insert(all.end(), runningList.begin(), runningList.end());
-        all.insert(all.end(), waitingList.begin(), waitingList.end());
-        all.insert(all.end(), terminatedList.begin(), terminatedList.end());
-
-        out << "[\n";
-        for (size_t i = 0; i < all.size(); ++i) {
-            const auto& c = all[i];
-            out << "  {\n";
-            out << "    \"id\": \"" << c.id << "\",\n";
-            out << "    \"title\": \"" << c.title << "\",\n";
-            out << "    \"category\": \"" << c.category << "\",\n";
-            out << "    \"location\": \"" << c.location << "\",\n";
-            out << "    \"ward\": \"" << c.ward << "\",\n";
-            out << "    \"department\": \"" << c.department << "\",\n";
-            out << "    \"priorityScore\": " << c.priorityScore << ",\n";
-            out << "    \"queueLevel\": " << c.queueLevel << ",\n";
-            out << "    \"duplicateCount\": " << c.duplicateCount << ",\n";
-            out << "    \"waitingDays\": " << c.waitingDays << ",\n";
-            out << "    \"agingBoost\": " << c.agingBoost << ",\n";
-            out << "    \"status\": \"" << stateToString(c.state) << "\",\n";
-            out << "    \"historyCount\": " << c.history.size() << "\n";
-            out << "  }" << (i + 1 < all.size() ? "," : "") << "\n";
-        }
-        out << "]\n";
-        out.close();
-        cout << "[JSON EXPORTER] Exported " << all.size() << " records to " << filename << "\n";
-    }
-
-    // Getter for statistics
     void printStats() const {
-        int readyCount = queue0.size() + queue1.size() + queue2.size();
+        int readyCount = static_cast<int>(queue0.size() + queue1.size() + queue2.size());
         cout << "\n[OS METRICS SUMMARY]\n";
         cout << "  - Ready in Multilevel Queue: " << readyCount << "\n";
         cout << "    * Queue 0 (Critical): " << queue0.size() << "\n";
         cout << "    * Queue 1 (High):     " << queue1.size() << "\n";
         cout << "    * Queue 2 (Normal):   " << queue2.size() << "\n";
         cout << "  - Running in Field:          " << runningList.size() << "\n";
-        cout << "  - Waiting (Blocked on I/O):  " << waitingList.size() << "\n";
+        cout << "  - Waiting (Blocked):         " << waitingList.size() << "\n";
         cout << "  - Terminated (Resolved):     " << terminatedList.size() << "\n";
     }
 };
 
-// ----------------------------------------------------------------------------
-// SEED INITIAL COMPLAINTS (Matches the Frontend DB)
-// ----------------------------------------------------------------------------
+class JsonParser {
+private:
+    string text;
+    size_t pos;
+
+    void skipWhitespace() {
+        while (pos < text.size() && isspace(static_cast<unsigned char>(text[pos]))) pos++;
+    }
+
+    char peek() {
+        skipWhitespace();
+        return pos < text.size() ? text[pos] : '\0';
+    }
+
+    void expect(char ch) {
+        skipWhitespace();
+        if (pos >= text.size() || text[pos] != ch) {
+            throw runtime_error(string("Expected '") + ch + "' while parsing JSON.");
+        }
+        pos++;
+    }
+
+    string parseString() {
+        expect('"');
+        string value;
+        while (pos < text.size()) {
+            char ch = text[pos++];
+            if (ch == '"') return value;
+            if (ch == '\\') {
+                if (pos >= text.size()) throw runtime_error("Invalid JSON escape.");
+                char esc = text[pos++];
+                switch (esc) {
+                    case '"': value.push_back('"'); break;
+                    case '\\': value.push_back('\\'); break;
+                    case '/': value.push_back('/'); break;
+                    case 'b': value.push_back('\b'); break;
+                    case 'f': value.push_back('\f'); break;
+                    case 'n': value.push_back('\n'); break;
+                    case 'r': value.push_back('\r'); break;
+                    case 't': value.push_back('\t'); break;
+                    case 'u':
+                        if (pos + 4 > text.size()) throw runtime_error("Invalid unicode escape.");
+                        value += "?";
+                        pos += 4;
+                        break;
+                    default:
+                        throw runtime_error("Unsupported JSON escape.");
+                }
+            } else {
+                value.push_back(ch);
+            }
+        }
+        throw runtime_error("Unterminated JSON string.");
+    }
+
+    string parseLiteral() {
+        skipWhitespace();
+        size_t start = pos;
+        while (pos < text.size()) {
+            char ch = text[pos];
+            if (ch == ',' || ch == '}' || ch == ']' || isspace(static_cast<unsigned char>(ch))) break;
+            pos++;
+        }
+        return text.substr(start, pos - start);
+    }
+
+public:
+    explicit JsonParser(string source) : text(source), pos(0) {}
+
+    vector<map<string, string>> parseArrayOfObjects() {
+        vector<map<string, string>> rows;
+        expect('[');
+        if (peek() == ']') {
+            pos++;
+            return rows;
+        }
+
+        while (true) {
+            map<string, string> row;
+            expect('{');
+            if (peek() != '}') {
+                while (true) {
+                    string key = parseString();
+                    expect(':');
+                    string value = (peek() == '"') ? parseString() : parseLiteral();
+                    row[key] = value;
+                    if (peek() != ',') break;
+                    pos++;
+                }
+            }
+            expect('}');
+            rows.push_back(row);
+            if (peek() != ',') break;
+            pos++;
+        }
+        expect(']');
+        return rows;
+    }
+};
+
+int intFromRow(const map<string, string>& row, const string& key, int fallback) {
+    auto it = row.find(key);
+    if (it == row.end() || it->second.empty() || it->second == "null") return fallback;
+    try {
+        return stoi(it->second);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+string stringFromRow(const map<string, string>& row, const string& key, const string& fallback = "") {
+    auto it = row.find(key);
+    if (it == row.end() || it->second == "null") return fallback;
+    return it->second;
+}
+
+ProcessState stateFromStatus(const string& status, const string& processState) {
+    string combined = status + " " + processState;
+    transform(combined.begin(), combined.end(), combined.begin(), ::toupper);
+    if (combined.find("BLOCK") != string::npos || combined.find("WAITING") != string::npos) return ProcessState::WAITING;
+    if (combined.find("PROGRESS") != string::npos || combined.find("RUNNING") != string::npos) return ProcessState::RUNNING;
+    if (combined.find("RESOLVED") != string::npos || combined.find("TERMINATED") != string::npos) return ProcessState::TERMINATED;
+    return ProcessState::READY;
+}
+
+ComplaintPCB pcbFromRow(const map<string, string>& row) {
+    string id = stringFromRow(row, "id", stringFromRow(row, "complaint_id"));
+    int severityBase = intFromRow(row, "severityBase", intFromRow(row, "severity_base", 60));
+    int duplicateCount = intFromRow(row, "duplicateCount", intFromRow(row, "duplicate_count", 1));
+    int waitingDays = intFromRow(row, "readyWaitDays", intFromRow(row, "waitingDays", intFromRow(row, "waiting_days", 0)));
+    string status = stringFromRow(row, "status", "Reported");
+    string processState = stringFromRow(row, "processState", stringFromRow(row, "process_state"));
+    ProcessState state = stateFromStatus(status, processState);
+
+    ComplaintPCB pcb(
+        id,
+        stringFromRow(row, "title"),
+        stringFromRow(row, "category"),
+        stringFromRow(row, "location"),
+        stringFromRow(row, "ward"),
+        stringFromRow(row, "department"),
+        severityBase,
+        duplicateCount,
+        waitingDays,
+        stringFromRow(row, "createdAt", stringFromRow(row, "created_at")),
+        stringFromRow(row, "slaDeadline", stringFromRow(row, "deadline")),
+        state
+    );
+    pcb.totalAgeDays = intFromRow(row, "totalAgeDays", waitingDays);
+    pcb.readyWaitDays = waitingDays;
+    pcb.blockedDays = intFromRow(row, "blockedDays", 0);
+    pcb.calculatePriority();
+    return pcb;
+}
+
+string selectedToJson(const ComplaintPCB& c) {
+    ostringstream out;
+    out << "{";
+    out << "\"id\":\"" << jsonEscape(c.id) << "\",";
+    out << "\"title\":\"" << jsonEscape(c.title) << "\",";
+    out << "\"category\":\"" << jsonEscape(c.category) << "\",";
+    out << "\"department\":\"" << jsonEscape(c.department) << "\",";
+    out << "\"priorityScore\":" << c.priorityScore << ",";
+    out << "\"queueLevel\":" << c.queueLevel << ",";
+    out << "\"baseSeverity\":" << c.baseSeverity << ",";
+    out << "\"duplicateBoost\":" << c.duplicateBoost << ",";
+    out << "\"readyWaitDays\":" << c.readyWaitDays << ",";
+    out << "\"agingBoost\":" << c.agingBoost << ",";
+    out << "\"deadlineUrgencyBoost\":" << c.deadlineUrgencyBoost << ",";
+    out << "\"slaDeadline\":\"" << jsonEscape(c.slaDeadline) << "\",";
+    out << "\"reason\":\"" << jsonEscape(c.selectionReason) << "\"";
+    out << "}";
+    return out.str();
+}
+
+int runJsonScheduler() {
+    try {
+        string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());
+        JsonParser parser(input);
+        vector<map<string, string>> rows = parser.parseArrayOfObjects();
+
+        CivicScheduler scheduler;
+        int eligibleCount = 0;
+        for (const auto& row : rows) {
+            ComplaintPCB pcb = pcbFromRow(row);
+            if (pcb.state == ProcessState::READY || pcb.state == ProcessState::NEW) {
+                scheduler.addComplaint(pcb);
+                eligibleCount++;
+            }
+        }
+
+        ComplaintPCB selected;
+        bool found = scheduler.selectNext(selected);
+
+        cout << "{";
+        cout << "\"ok\":true,";
+        cout << "\"eligibleCount\":" << eligibleCount << ",";
+        cout << "\"policy\":\"severity + capped duplicate boost + ready aging + SLA urgency; deterministic tie-breakers\",";
+        cout << "\"selected\":" << (found ? selectedToJson(selected) : "null");
+        cout << "}\n";
+        return 0;
+    } catch (const exception& ex) {
+        cout << "{\"ok\":false,\"error\":\"" << jsonEscape(ex.what()) << "\"}\n";
+        return 1;
+    }
+}
+
 void seedInitialData(CivicScheduler& scheduler) {
     scheduler.addComplaint(ComplaintPCB("CS1024", "Large pothole near Sector 15 market", "Roads", "Sector 15 Market", "Central Zone", "Road Maintenance", 65, 12, 4));
     scheduler.addComplaint(ComplaintPCB("CS1031", "Drinking water pipeline burst", "Water", "MG Road, Pillar 142", "North Zone", "Water & Sewerage", 70, 7, 3));
@@ -482,10 +673,7 @@ void seedInitialData(CivicScheduler& scheduler) {
     scheduler.addComplaint(ComplaintPCB("CS1060", "Fallen tree branch on power transformer", "Electricity", "Block C Park", "East Zone", "Electrical Wing", 80, 8, 1));
 }
 
-// ----------------------------------------------------------------------------
-// MAIN FUNCTION & INTERACTIVE SIMULATION MENU
-// ----------------------------------------------------------------------------
-int main() {
+int runInteractiveConsole() {
     CivicScheduler scheduler;
     seedInitialData(scheduler);
 
@@ -502,7 +690,6 @@ int main() {
         cout << " 5. Register New Citizen Complaint (NEW -> READY)\n";
         cout << " 6. Block Complaint on Resource (RUNNING -> WAITING)\n";
         cout << " 7. Resolve / Terminate Complaint (RUNNING -> TERMINATED)\n";
-        cout << " 8. Export Queues to JSON (For Web Frontend Sync)\n";
         cout << " 9. Exit\n";
         cout << " Enter choice [1-9]: ";
 
@@ -513,20 +700,17 @@ int main() {
         }
 
         switch (choice) {
-            case 1: {
+            case 1:
                 scheduler.printQueueStatus();
                 scheduler.printStats();
                 break;
-            }
-            case 2: {
+            case 2:
                 scheduler.dispatchNext();
                 break;
-            }
-            case 3: {
+            case 3:
                 scheduler.simulateAgingDay();
                 scheduler.printQueueStatus();
                 break;
-            }
             case 4: {
                 string id;
                 cout << "Enter Complaint ID to add duplicate report for (e.g. CS1052): ";
@@ -564,21 +748,21 @@ int main() {
                 scheduler.resolveComplaint(id, note);
                 break;
             }
-            case 8: {
-                string filename = "scheduled_complaints.json";
-                scheduler.exportToJSON(filename);
-                break;
-            }
-            case 9: {
+            case 9:
                 cout << "\nExiting Civic Smart OS Scheduling Engine. Goodbye!\n";
                 break;
-            }
-            default: {
+            default:
                 cout << "Invalid choice. Please select between 1 and 9.\n";
                 break;
-            }
         }
     }
 
     return 0;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc > 1 && string(argv[1]) == "--schedule-json") {
+        return runJsonScheduler();
+    }
+    return runInteractiveConsole();
 }

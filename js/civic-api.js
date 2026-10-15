@@ -145,6 +145,32 @@ const CivicAPI = (() => {
     }
 
     /**
+     * Run the integrated C++ scheduler through Flask/PostgreSQL.
+     */
+    async function runScheduler(actor = 'Authority Console') {
+        if (!isConnected) {
+            return { ok: false, offline: true, message: 'PostgreSQL backend is offline.' };
+        }
+
+        const res = await fetch(`${API_BASE}/scheduler/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actor })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            return {
+                ok: false,
+                status: res.status,
+                ...data,
+                message: data.message || data.error || 'Scheduler request failed.'
+            };
+        }
+        await syncFromPostgres();
+        return data;
+    }
+
+    /**
      * Decorate CivicData methods to achieve transparent dual-write
      */
     function hookCivicData() {
@@ -220,7 +246,10 @@ const CivicAPI = (() => {
     return {
         checkHealth,
         syncFromPostgres,
+        runScheduler,
         isDatabaseConnected: () => isConnected,
         API_BASE
     };
 })();
+
+window.CivicAPI = CivicAPI;
