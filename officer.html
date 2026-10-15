@@ -91,7 +91,10 @@
                         <h1 class="page-header__title" id="officerName">Officer Portal</h1>
                         <p class="page-header__desc" id="officerMeta">Assignment lifecycle and field progress controls.</p>
                     </div>
-                    <select id="officerSelect" class="form-select" style="max-width: 360px;"></select>
+                    <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
+                        <select id="officerSelect" class="form-select" style="max-width: 360px;"></select>
+                        <button type="button" class="btn btn--secondary btn--sm" data-sign-out>Sign Out</button>
+                    </div>
                 </div>
             </div>
         </header>

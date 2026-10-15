@@ -99,6 +99,20 @@ VALUES
     )
 ON CONFLICT (officer_id) DO NOTHING;
 
+-- Create login rows after the seeded identities exist. Set usable passwords with
+-- backend/set_account_password.py before signing into the demo portals.
+INSERT INTO app_users (username, password_hash, role, citizen_id)
+SELECT COALESCE(phone, email), password_hash, 'CITIZEN', citizen_id
+FROM citizens
+WHERE password_hash IS NOT NULL AND COALESCE(phone, email) IS NOT NULL
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO app_users (username, password_hash, role, officer_id)
+SELECT officer_id, password_hash, 'OFFICER', officer_id
+FROM authorities
+WHERE password_hash IS NOT NULL
+ON CONFLICT (username) DO NOTHING;
+
 -- ----------------------------------------------------------------------------
 -- 3. SEED COMPLAINTS
 -- ----------------------------------------------------------------------------
@@ -271,3 +285,15 @@ VALUES
     ('CITIZEN', 'CS1031', 'Complaint CS1031 status updated to In Progress.', TRUE, CURRENT_TIMESTAMP - INTERVAL '26 days'),
     ('ADMIN', 'CS1052', 'New Drainage complaint CS1052 is ready for verification.', FALSE, CURRENT_TIMESTAMP - INTERVAL '9 days')
 ON CONFLICT DO NOTHING;
+
+UPDATE notifications n
+SET target_user_id = u.user_id
+FROM complaints c
+JOIN app_users u ON u.citizen_id = c.citizen_id AND u.role = 'CITIZEN'
+WHERE n.complaint_id = c.complaint_id AND n.target_role = 'CITIZEN' AND n.target_user_id IS NULL;
+
+UPDATE notifications n
+SET target_user_id = u.user_id
+FROM complaints c
+JOIN app_users u ON u.officer_id = c.assigned_officer_id AND u.role = 'OFFICER'
+WHERE n.complaint_id = c.complaint_id AND n.target_role = 'OFFICER' AND n.target_user_id IS NULL;

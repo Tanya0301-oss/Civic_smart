@@ -39,7 +39,7 @@ This C++ engine acts as the **Central Operating System Kernel / Scheduler** of t
 
 In `civic_os_engine.cpp`, every complaint's priority is computed dynamically:
 
-$$\text{Priority Score} = \text{Base Severity} + \text{Duplicate Boost} + \text{Aging Boost}$$
+$$P = \min(99, B + D + A + S)$$
 
 1. **Base Severity**:
    - `Critical` = 90 points (e.g. fallen tree on power transformer)
@@ -47,11 +47,11 @@ $$\text{Priority Score} = \text{Base Severity} + \text{Duplicate Boost} + \text{
    - `Medium` = 60 points (e.g. overflowing garbage)
    - `Low` = 40 points (e.g. cracked footpath)
 2. **Duplicate Boost**:
-   - Each additional citizen report about the same location adds $+2$ points:
-     $$\text{Duplicate Boost} = (\text{Duplicate Count} - 1) \times 2$$
-3. **Aging Boost**:
-   - For every day the complaint sits pending in the queue, it gains $+2$ points:
-     $$\text{Aging Boost} = \text{Waiting Days} \times 2$$
+   - Each additional report adds $+2$, capped at 20 points: $D = \min(20, (\text{Duplicate Count} - 1) \times 2)$.
+3. **Ready Aging Boost**:
+   - Each day awaiting scheduling adds $+2$: $A = \text{Ready Wait Days} \times 2$. Aging stops after allocation.
+4. **SLA Urgency**:
+   - Overdue: $+20$; due within 24h: $+15$; 48h: $+10$; 72h: $+5$; otherwise $0$.
 
 ---
 

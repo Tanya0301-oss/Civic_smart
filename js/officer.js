@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!await CivicAPI.requireRole('OFFICER')) return;
     const officerSelect = document.getElementById('officerSelect');
     const officerName = document.getElementById('officerName');
     const officerMeta = document.getElementById('officerMeta');
@@ -7,14 +8,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const auditList = document.getElementById('officerAudit');
 
     function populateOfficers() {
-        officerSelect.innerHTML = CivicData.getOfficers().map(officer => `
+        const usersOfficerId = CivicAPI.currentUser()?.officerId;
+        const options = usersOfficerId
+            ? CivicData.getOfficers().filter(officer => officer.id === usersOfficerId)
+            : CivicData.getOfficers();
+        officerSelect.innerHTML = options.map(officer => `
             <option value="${officer.id}">${officer.name} - ${officer.department}</option>
         `).join('');
-        officerSelect.value = localStorage.getItem('civics_smart_active_officer') || CivicData.getOfficers()[0].id;
+        officerSelect.value = usersOfficerId || localStorage.getItem('civics_smart_active_officer') || options[0]?.id || '';
+        officerSelect.disabled = Boolean(usersOfficerId);
     }
 
     function currentOfficer() {
-        return CivicData.getOfficers().find(officer => officer.id === officerSelect.value) || CivicData.getOfficers()[0];
+        return CivicData.getOfficers().find(officer => officer.id === officerSelect.value) || { id: officerSelect.value, name: officerSelect.value, role: 'Municipal Officer', department: 'Civic Services', capacity: 0 };
     }
 
     function renderOfficerHeader(officer) {
@@ -87,14 +93,28 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
 
         document.querySelectorAll('.officer-action').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const action = button.dataset.action;
                 const details = { actor: `Officer Portal - ${officer.name}` };
-                if (action === 'REJECTED') details.rejectionReason = 'Officer rejected due to workload or area mismatch.';
-                if (action === 'BLOCKED') details.blocker = 'Waiting for materials, access, or supervisory clearance.';
-                if (action === 'COMPLETION_SUBMITTED') details.completionNote = 'Field work completed and evidence submitted for authority verification.';
-                CivicData.updateAssignment(button.dataset.id, action, details);
-                renderAll();
+                if (action === 'REJECTED') details.rejectionReason = prompt('Why are you declining this assignment?')?.trim();
+                if (action === 'BLOCKED') details.blocker = prompt('Describe what is blocking the work:')?.trim();
+                if (action === 'COMPLETION_SUBMITTED') details.completionNote = prompt('Describe the completed work and evidence reference:')?.trim();
+                if (['REJECTED', 'BLOCKED', 'COMPLETION_SUBMITTED'].includes(action) && !details.rejectionReason && !details.blocker && !details.completionNote) return;
+
+                button.disabled = true;
+                try {
+                    if (CivicAPI.isDatabaseConnected()) {
+                        await CivicAPI.updateAssignment(button.dataset.id, action, details);
+                    } else {
+                        CivicData.updateAssignment(button.dataset.id, action, details);
+                        alert('Offline demo only: this assignment update was not saved to PostgreSQL.');
+                    }
+                    renderAll();
+                } catch (error) {
+                    alert(`Assignment update failed: ${error.message}`);
+                } finally {
+                    button.disabled = false;
+                }
             });
         });
     }

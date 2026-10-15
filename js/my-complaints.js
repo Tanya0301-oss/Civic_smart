@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!await CivicAPI.requireRole('CITIZEN')) return;
     const listContainer = document.getElementById('complaintsList');
     const searchInput = document.getElementById('complaintSearch');
     const filterTabs = document.querySelectorAll('.filter-tab');

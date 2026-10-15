@@ -4,15 +4,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('trackInput');
     const chips = document.querySelectorAll('.track-chip');
 
-    const lifecycle = ['Reported', 'Verified', 'Assigned', 'In Progress', 'Completion Submitted', 'Resolved'];
+    const lifecycle = ['Reported', 'Verified', 'Assigned', 'In Progress', 'Blocked', 'Completion Submitted', 'Resolved'];
 
-    function officerName(id) {
+    function officerName(id, status, serverOfficer = null) {
+        if (serverOfficer) return `${serverOfficer.name} (${serverOfficer.role})`;
         const officer = CivicData.getOfficers().find(item => item.id === id);
-        return officer ? `${officer.name} (${officer.role})` : 'Awaiting eligible officer allocation';
+        if (officer) return `${officer.name} (${officer.role})`;
+        return ['Assigned', 'In Progress', 'Blocked', 'Completion Submitted', 'Resolved'].includes(status)
+            ? 'Assigned municipal officer' : 'Awaiting eligible officer allocation';
     }
 
-    function timelineFor(complaint) {
-        const auditEvents = CivicData.getAudit()
+    function timelineFor(complaint, history = null) {
+        if (history && history.length) {
+            const events = [...history].reverse();
+            return events.map((event, index) => ({
+                title: event.action || event.toStatus || 'Complaint updated',
+                date: event.timestamp,
+                desc: event.message,
+                completed: index < events.length - 1 || complaint.status === 'Resolved',
+                current: index === events.length - 1 && complaint.status !== 'Resolved'
+            }));
+        }
+        const auditEvents = (history || CivicData.getAudit())
             .filter(event => event.complaintId === complaint.id)
             .reverse();
 
@@ -42,9 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return text[status] || complaint.description;
     }
 
-    function renderComplaint(id) {
+    async function renderComplaint(id) {
         const cleanId = id.toUpperCase().replace('#', '').trim();
-        const data = CivicData.getComplaints().find(item => item.id === cleanId);
+        let data = CivicData.getComplaints().find(item => item.id === cleanId);
+        let auditHistory = null;
+        let assignedOfficer = null;
+        try {
+            const health = await CivicAPI.checkHealth();
+            if (health.databaseConnected) {
+                const result = await CivicAPI.getComplaint(cleanId);
+                data = result.complaint;
+                auditHistory = result.timeline;
+                assignedOfficer = result.officer;
+            }
+        } catch (error) {
+            container.innerHTML = `<div class="card" role="alert" style="padding: var(--space-2xl);">Tracking could not load from the database: ${error.message}</div>`;
+            return;
+        }
 
         if (!data) {
             container.innerHTML = `
@@ -72,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isResolved = data.status.toLowerCase() === 'resolved';
         const badgeClass = isResolved ? 'badge--resolved' : (data.priorityScore >= 85 ? 'badge--critical' : (data.priorityScore >= 70 ? 'badge--high' : 'badge--normal'));
-        const timeline = timelineFor(data);
+        const timeline = timelineFor(data, auditHistory);
 
         container.innerHTML = `
             <article class="tracking-main-card">
@@ -142,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             <div class="insight-formula-row">
                                 <div><strong>Scheduling Algorithm:</strong></div>
-                                <code>Priority = Base (${data.severityBase}) + Duplicates (+${data.duplicateBoost}) + Aging (+${data.agingBoost}) = <strong>${data.priorityScore}</strong></code>
+                                <code>Priority = Base (${data.severityBase}) + Duplicates (+${data.duplicateBoost}) + Aging (+${data.agingBoost}) + SLA (+${data.deadlineUrgencyBoost || 0}) = <strong>${data.priorityScore}</strong></code>
                             </div>
 
                             <div class="insight-data-list">
@@ -161,6 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="insight-data-item">
                                     <span class="label">OS Aging Compensation:</span>
                                     <span class="value" style="color: var(--burgundy);">+${data.agingBoost} pts boost</span>
+                                </div>
+                                <div class="insight-data-item">
+                                    <span class="label">SLA Deadline Urgency:</span>
+                                    <span class="value" style="color: var(--burgundy);">+${data.deadlineUrgencyBoost || 0} pts${data.slaDeadline ? ` · due ${new Date(data.slaDeadline).toLocaleString()}` : ''}</span>
                                 </div>
                             </div>
 
@@ -182,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div class="insight-data-item">
                                     <span class="label">Field Officer:</span>
-                                    <span class="value">${officerName(data.assignedOfficerId)}</span>
+                                    <span class="value">${officerName(data.assignedOfficerId, data.status, assignedOfficer)}</span>
                                 </div>
                                 <div class="insight-data-item">
                                     <span class="label">Duplicate Cluster:</span>
@@ -191,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
 
                             <div style="margin-top: var(--space-md); padding: var(--space-md); background: rgba(233,223,208,0.3); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--taupe);">
-                                Every visible transition is mirrored into the local audit trail. A real backend would enforce these same transitions with transactions and authorization.
+                                ${auditHistory ? 'Status history is provided by the Civic Smart database.' : 'Offline demo: status history is stored only in this browser.'}
                             </div>
                         </div>
                     </div>

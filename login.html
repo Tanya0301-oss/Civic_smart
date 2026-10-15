@@ -223,13 +223,14 @@
                 <div class="role-switch">
                     <button type="button" class="role-btn active" id="btnCitizen">Citizen Login</button>
                     <button type="button" class="role-btn" id="btnOfficer">Municipal Officer</button>
+                    <button type="button" class="role-btn" id="btnAdmin">Authority Admin</button>
                 </div>
 
             <!-- Form -->
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label" id="usernameLabel">Mobile Number / Citizen ID</label>
-                    <input type="text" id="userInput" class="form-input" placeholder="+91 98765 43210" value="+91 98102 44921" required>
+                    <input type="text" id="userInput" class="form-input" placeholder="Mobile number" required>
                 </div>
 
                 <div class="form-group">
@@ -237,8 +238,10 @@
                         <label class="form-label" style="margin-bottom: 0;">Password / Passcode</label>
                         <a href="#" style="font-size: 0.75rem; color: var(--burgundy);">Forgot?</a>
                     </div>
-                    <input type="password" class="form-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" value="password123" required>
+                    <input type="password" id="passwordInput" class="form-input" placeholder="Password" required autocomplete="current-password">
                 </div>
+
+                <p id="loginError" role="alert" style="display: none; color: var(--status-critical); font-size: var(--text-sm);"></p>
 
                 <button type="submit" id="submitLoginBtn" class="btn btn--primary" style="width: 100%; margin-top: var(--space-lg);">
                     Access Citizen Portal
@@ -252,42 +255,54 @@
     </div><!-- End .page-wrapper -->
 
     <script src="js/nav.js"></script>
+    <script src="js/civic-api.js"></script>
     <script>
         const btnCitizen = document.getElementById('btnCitizen');
         const btnOfficer = document.getElementById('btnOfficer');
+        const btnAdmin = document.getElementById('btnAdmin');
         const usernameLabel = document.getElementById('usernameLabel');
         const userInput = document.getElementById('userInput');
+        const passwordInput = document.getElementById('passwordInput');
         const submitLoginBtn = document.getElementById('submitLoginBtn');
         const loginForm = document.getElementById('loginForm');
+        const loginError = document.getElementById('loginError');
 
-        let isOfficer = false;
+        let role = 'CITIZEN';
 
-        btnCitizen.addEventListener('click', () => {
-            btnCitizen.classList.add('active');
-            btnOfficer.classList.remove('active');
-            usernameLabel.textContent = 'Mobile Number / Citizen ID';
-            userInput.placeholder = '+91 98765 43210';
-            userInput.value = '+91 98102 44921';
-            submitLoginBtn.textContent = 'Access Citizen Portal';
-            isOfficer = false;
-        });
+        function chooseRole(nextRole) {
+            role = nextRole;
+            [btnCitizen, btnOfficer, btnAdmin].forEach(button => button.classList.toggle('active', button.dataset.role === role));
+            const copy = {
+                CITIZEN: ['Mobile Number', 'Mobile number', 'Access Citizen Portal'],
+                OFFICER: ['Officer ID', 'For example, OFF-RD-104', 'Access Officer Portal'],
+                ADMIN: ['Admin Username', 'Admin username', 'Access Authority Dashboard']
+            }[role];
+            usernameLabel.textContent = copy[0];
+            userInput.placeholder = copy[1];
+            userInput.value = '';
+            submitLoginBtn.textContent = copy[2];
+            loginError.style.display = 'none';
+        }
 
-        btnOfficer.addEventListener('click', () => {
-            btnOfficer.classList.add('active');
-            btnCitizen.classList.remove('active');
-            usernameLabel.textContent = 'Municipal Officer Government ID';
-            userInput.placeholder = 'OFFICER-ENG-104';
-            userInput.value = 'MC-CHANDIGARH-09';
-            submitLoginBtn.textContent = 'Access Authority Dashboard';
-            isOfficer = true;
-        });
+        btnCitizen.dataset.role = 'CITIZEN';
+        btnOfficer.dataset.role = 'OFFICER';
+        btnAdmin.dataset.role = 'ADMIN';
+        btnCitizen.addEventListener('click', () => chooseRole('CITIZEN'));
+        btnOfficer.addEventListener('click', () => chooseRole('OFFICER'));
+        btnAdmin.addEventListener('click', () => chooseRole('ADMIN'));
 
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (isOfficer) {
-                window.location.href = 'officer.html';
-            } else {
-                window.location.href = 'my-complaints.html';
+            submitLoginBtn.disabled = true;
+            loginError.style.display = 'none';
+            try {
+                await CivicAPI.login(userInput.value.trim(), passwordInput.value, role);
+                window.location.assign(role === 'ADMIN' ? 'admin.html' : role === 'OFFICER' ? 'officer.html' : 'my-complaints.html');
+            } catch (error) {
+                loginError.textContent = error.message;
+                loginError.style.display = 'block';
+            } finally {
+                submitLoginBtn.disabled = false;
             }
         });
     </script>

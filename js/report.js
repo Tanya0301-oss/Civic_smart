@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Form submission
     if (reportForm) {
-        reportForm.addEventListener('submit', (e) => {
+        reportForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const title = document.getElementById('title').value.trim();
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const newComplaint = CivicData.createComplaint({
+            const payload = {
                 title,
                 description,
                 category,
@@ -115,11 +115,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 severity,
                 citizen: citizenName,
                 photo: uploadedImageData
-            });
+            };
+
+            const submitButton = reportForm.querySelector('[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+            let newComplaint;
+            let persisted = false;
+            try {
+                const health = await CivicAPI.checkHealth();
+                if (health.databaseConnected) {
+                    newComplaint = await CivicAPI.createComplaint(payload);
+                    persisted = true;
+                } else {
+                    newComplaint = CivicData.createComplaint(payload);
+                }
+            } catch (error) {
+                alert(`The report could not be saved: ${error.message}`);
+                if (submitButton) submitButton.disabled = false;
+                return;
+            }
+            if (submitButton) submitButton.disabled = false;
+
+            document.getElementById('submissionModeMessage').textContent = persisted
+                ? 'Saved to the Civic Smart database.'
+                : 'Offline demo only: this report is stored in this browser and was not sent to the municipal database.';
 
             // Update modal
             document.getElementById('assignedComplaintId').textContent = '#' + newComplaint.id;
-            document.getElementById('modalPriorityScore').textContent = `${newComplaint.priorityScore} (${severity})`;
+            document.getElementById('modalPriorityScore').textContent = `${newComplaint.priorityScore ?? 'Pending'} (${severity})`;
             document.getElementById('modalDepartment').textContent = newComplaint.department;
             document.getElementById('trackLink').href = `track.html?id=${newComplaint.id}`;
 

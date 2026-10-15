@@ -63,6 +63,33 @@ CREATE TABLE IF NOT EXISTS authorities (
     )
 );
 
+-- Login identities are separate from job titles and use server-verified roles.
+CREATE TABLE IF NOT EXISTS app_users (
+    user_id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('CITIZEN', 'OFFICER', 'ADMIN')),
+    citizen_id INT UNIQUE REFERENCES citizens(citizen_id) ON DELETE CASCADE,
+    officer_id VARCHAR(30) UNIQUE REFERENCES authorities(officer_id) ON DELETE CASCADE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK ((role = 'CITIZEN' AND citizen_id IS NOT NULL AND officer_id IS NULL)
+        OR (role = 'OFFICER' AND officer_id IS NOT NULL AND citizen_id IS NULL)
+        OR (role = 'ADMIN' AND citizen_id IS NULL AND officer_id IS NULL))
+);
+
+INSERT INTO app_users (username, password_hash, role, citizen_id)
+SELECT COALESCE(phone, email), password_hash, 'CITIZEN', citizen_id
+FROM citizens
+WHERE password_hash IS NOT NULL AND COALESCE(phone, email) IS NOT NULL
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO app_users (username, password_hash, role, officer_id)
+SELECT officer_id, password_hash, 'OFFICER', officer_id
+FROM authorities
+WHERE password_hash IS NOT NULL
+ON CONFLICT (username) DO NOTHING;
+
 COMMENT ON TABLE authorities IS 'Municipal field supervisors, engineers and administrative staff.';
 COMMENT ON COLUMN authorities.capacity IS 'Maximum concurrent active assignments an officer can hold.';
 
@@ -86,7 +113,9 @@ CREATE TABLE IF NOT EXISTS complaints (
     duplicate_boost      INT NOT NULL DEFAULT 0,
     waiting_days         INT NOT NULL DEFAULT 0,
     aging_boost          INT NOT NULL DEFAULT 0,
+    deadline_urgency_boost INT NOT NULL DEFAULT 0,
     priority_score       INT NOT NULL DEFAULT 60,
+    sla_deadline         TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '48 hours'),
     status               VARCHAR(40) NOT NULL DEFAULT 'Reported',
     process_state        VARCHAR(100) NOT NULL DEFAULT 'NEW / READY (MLQ Pending Verification)',
     photo_url            TEXT,
@@ -130,7 +159,7 @@ CREATE TABLE IF NOT EXISTS complaints (
 );
 
 COMMENT ON TABLE complaints IS 'Core grievance records acting as OS Processes with priority scoring.';
-COMMENT ON COLUMN complaints.priority_score IS 'Computed dynamically: SeverityBase + DuplicateBoost + AgingBoost.';
+COMMENT ON COLUMN complaints.priority_score IS 'Computed as capped severity + duplicate + ready aging + SLA urgency, capped at 99.';
 
 -- ----------------------------------------------------------------------------
 -- Table 4: Assignments (Task Dispatch & Dispatcher State)
@@ -190,6 +219,7 @@ COMMENT ON TABLE status_history IS 'Immutable chronological audit log of all com
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id     BIGSERIAL PRIMARY KEY,
     target_role         VARCHAR(30) NOT NULL,
+    target_user_id      BIGINT REFERENCES app_users(user_id) ON DELETE CASCADE,
     complaint_id        VARCHAR(30) REFERENCES complaints(complaint_id) ON DELETE CASCADE,
     message             TEXT NOT NULL,
     is_read             BOOLEAN DEFAULT FALSE,
@@ -199,6 +229,18 @@ CREATE TABLE IF NOT EXISTS notifications (
         target_role IN ('CITIZEN', 'ADMIN', 'OFFICER')
     )
 );
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_user_id BIGINT REFERENCES app_users(user_id) ON DELETE CASCADE;
+UPDATE notifications n
+SET target_user_id = u.user_id
+FROM complaints c
+JOIN app_users u ON u.citizen_id = c.citizen_id AND u.role = 'CITIZEN'
+WHERE n.complaint_id = c.complaint_id AND n.target_role = 'CITIZEN' AND n.target_user_id IS NULL;
+UPDATE notifications n
+SET target_user_id = u.user_id
+FROM complaints c
+JOIN app_users u ON u.officer_id = c.assigned_officer_id AND u.role = 'OFFICER'
+WHERE n.complaint_id = c.complaint_id AND n.target_role = 'OFFICER' AND n.target_user_id IS NULL;
 
 COMMENT ON TABLE notifications IS 'Role-directed alerts triggered on complaint state changes.';
 
@@ -214,6 +256,11 @@ ALTER TABLE complaints ADD COLUMN IF NOT EXISTS tehsil VARCHAR(100) DEFAULT 'Deh
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS severity_base INT DEFAULT 60;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS duplicate_boost INT DEFAULT 0;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS aging_boost INT DEFAULT 0;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS deadline_urgency_boost INT NOT NULL DEFAULT 0;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS sla_deadline TIMESTAMPTZ;
+UPDATE complaints SET sla_deadline = COALESCE(created_at, CURRENT_TIMESTAMP) + INTERVAL '48 hours' WHERE sla_deadline IS NULL;
+ALTER TABLE complaints ALTER COLUMN sla_deadline SET DEFAULT (CURRENT_TIMESTAMP + INTERVAL '48 hours');
+ALTER TABLE complaints ALTER COLUMN sla_deadline SET NOT NULL;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS process_state VARCHAR(100) DEFAULT 'NEW / READY (MLQ Lane 2)';
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS cluster_id VARCHAR(50) DEFAULT 'CLUS-SINGLE';
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS assigned_officer_id VARCHAR(30);
@@ -259,6 +306,7 @@ CREATE INDEX IF NOT EXISTS idx_complaints_citizen
 
 CREATE INDEX IF NOT EXISTS idx_complaints_officer 
     ON complaints (assigned_officer_id);
+CREATE INDEX IF NOT EXISTS idx_complaints_sla_deadline ON complaints (sla_deadline);
 
 -- Citizens indexes
 CREATE INDEX IF NOT EXISTS idx_citizens_ward 
@@ -275,6 +323,11 @@ CREATE INDEX IF NOT EXISTS idx_assignments_officer_active
 CREATE INDEX IF NOT EXISTS idx_assignments_complaint 
     ON assignments (complaint_id);
 
+-- A complaint may only have one live work order at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_assignments_one_active_per_complaint
+    ON assignments (complaint_id)
+    WHERE state NOT IN ('REJECTED', 'COMPLETED');
+
 -- Status history timeline index
 CREATE INDEX IF NOT EXISTS idx_status_history_timeline 
     ON status_history (complaint_id, created_at DESC);
@@ -282,6 +335,8 @@ CREATE INDEX IF NOT EXISTS idx_status_history_timeline
 -- Notifications unread index
 CREATE INDEX IF NOT EXISTS idx_notifications_role_unread 
     ON notifications (target_role, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread
+    ON notifications (target_user_id, is_read, created_at DESC);
 
 -- ============================================================================
 -- 4. STORED FUNCTIONS & TRIGGERS
@@ -324,7 +379,7 @@ CREATE TRIGGER trg_assignments_updated_at
 
 -- ----------------------------------------------------------------------------
 -- Function & Trigger B: Compute Dynamic Priority Score & MLQ Lane
--- Formula: Priority = Base Severity + (DuplicateCount - 1)*2 + WaitingDays*2
+-- Formula: min(99, base + capped duplicate boost + ready-wait aging + SLA urgency)
 -- Lane 0: Score >= 85 (Critical)
 -- Lane 1: 70 <= Score < 85 (High)
 -- Lane 2: Score < 70 (Routine)
@@ -337,6 +392,7 @@ DECLARE
     v_aging_boost INT;
     v_score INT;
     v_lane INT;
+    v_sla_boost INT;
 BEGIN
     -- Determine base score
     v_base := CASE NEW.severity
@@ -348,11 +404,20 @@ BEGIN
     END;
 
     NEW.severity_base := v_base;
-    NEW.duplicate_boost := GREATEST(0, (COALESCE(NEW.duplicate_count, 1) - 1) * 2);
+    NEW.duplicate_boost := LEAST(20, GREATEST(0, (COALESCE(NEW.duplicate_count, 1) - 1) * 2));
     NEW.aging_boost := GREATEST(0, COALESCE(NEW.waiting_days, 0) * 2);
+    v_sla_boost := CASE
+        WHEN NEW.sla_deadline IS NULL THEN 0
+        WHEN NEW.sla_deadline <= CURRENT_TIMESTAMP THEN 20
+        WHEN NEW.sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '24 hours' THEN 15
+        WHEN NEW.sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '48 hours' THEN 10
+        WHEN NEW.sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '72 hours' THEN 5
+        ELSE 0
+    END;
+    NEW.deadline_urgency_boost := v_sla_boost;
     
     -- Bound priority score to maximum of 99
-    v_score := LEAST(99, v_base + NEW.duplicate_boost + NEW.aging_boost);
+    v_score := LEAST(99, v_base + NEW.duplicate_boost + NEW.aging_boost + v_sla_boost);
     NEW.priority_score := v_score;
 
     -- Compute MLQ Lane
@@ -388,10 +453,24 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_complaints_priority_calc ON complaints;
 CREATE TRIGGER trg_complaints_priority_calc
-    BEFORE INSERT OR UPDATE OF severity, duplicate_count, waiting_days, status
+    BEFORE INSERT OR UPDATE OF severity, duplicate_count, waiting_days, status, sla_deadline
     ON complaints
     FOR EACH ROW
     EXECUTE FUNCTION fn_recalculate_complaint_priority();
+
+-- Recalculate older rows once when the stored components differ from policy.
+UPDATE complaints
+SET status = status
+WHERE severity_base IS DISTINCT FROM CASE severity
+          WHEN 'Critical' THEN 90 WHEN 'High' THEN 75 WHEN 'Medium' THEN 60 WHEN 'Low' THEN 40 ELSE 60 END
+   OR duplicate_boost IS DISTINCT FROM LEAST(20, GREATEST(0, (COALESCE(duplicate_count, 1) - 1) * 2))
+   OR aging_boost IS DISTINCT FROM GREATEST(0, COALESCE(waiting_days, 0) * 2)
+   OR deadline_urgency_boost IS DISTINCT FROM CASE
+          WHEN sla_deadline <= CURRENT_TIMESTAMP THEN 20
+          WHEN sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '24 hours' THEN 15
+          WHEN sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '48 hours' THEN 10
+          WHEN sla_deadline <= CURRENT_TIMESTAMP + INTERVAL '72 hours' THEN 5
+          ELSE 0 END;
 
 -- ----------------------------------------------------------------------------
 -- Function & Trigger C: Automatically Log Status History on Transitions
@@ -415,16 +494,17 @@ BEGIN
             'Status Transition',
             OLD.status,
             NEW.status,
-            'Complaint transitioned from ' || OLD.status || ' to ' || NEW.status || '.'
+            COALESCE(
+                NULLIF(current_setting('civic_smart.current_message', true), ''),
+                'Complaint transitioned from ' || OLD.status || ' to ' || NEW.status || '.'
+            )
         );
 
         -- Also record an admin/citizen notification
-        INSERT INTO notifications (target_role, complaint_id, message)
-        VALUES (
-            'CITIZEN',
-            NEW.complaint_id,
-            'Complaint ' || NEW.complaint_id || ' status changed to ' || NEW.status || '.'
-        );
+        INSERT INTO notifications (target_role, target_user_id, complaint_id, message)
+        SELECT 'CITIZEN', u.user_id, NEW.complaint_id,
+               'Complaint ' || NEW.complaint_id || ' status changed to ' || NEW.status || '.'
+        FROM app_users u WHERE u.citizen_id = NEW.citizen_id AND u.role = 'CITIZEN';
     END IF;
     RETURN NEW;
 END;
@@ -453,7 +533,7 @@ DECLARE
 BEGIN
     UPDATE complaints
     SET waiting_days = waiting_days + 1
-    WHERE status NOT IN ('Resolved', 'Completion Submitted');
+    WHERE status IN ('Reported', 'Verified');
 
     GET DIAGNOSTICS v_affected = ROW_COUNT;
 
@@ -476,7 +556,7 @@ BEGIN
         status,
         '24-Hour aging step incremented waiting days to ' || waiting_days || ' (Score: ' || priority_score || ').'
     FROM complaints
-    WHERE status NOT IN ('Resolved', 'Completion Submitted');
+    WHERE status IN ('Reported', 'Verified');
 
     RAISE NOTICE 'Daily aging applied to % active complaints.', v_affected;
 END;
@@ -497,11 +577,22 @@ DECLARE
     v_chosen_officer VARCHAR(30);
     v_assignment_id VARCHAR(40);
 BEGIN
-    SELECT * INTO v_complaint FROM complaints WHERE complaint_id = p_complaint_id;
+    SELECT * INTO v_complaint FROM complaints WHERE complaint_id = p_complaint_id FOR UPDATE;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Complaint % not found.', p_complaint_id;
     END IF;
+
+    IF v_complaint.status NOT IN ('Reported', 'Verified') OR v_complaint.assigned_officer_id IS NOT NULL
+       OR EXISTS (
+           SELECT 1 FROM assignments
+           WHERE complaint_id = p_complaint_id AND state NOT IN ('REJECTED', 'COMPLETED')
+       ) THEN
+        RAISE EXCEPTION 'Complaint % is not eligible for allocation.', p_complaint_id;
+    END IF;
+
+    -- Serialize officer selection so concurrent allocations cannot overbook capacity.
+    PERFORM pg_advisory_xact_lock(hashtext('civic_smart_allocation'));
 
     -- Select best officer: matches department or skill, has service area or ward, available, least load
     SELECT a.officer_id INTO v_chosen_officer
@@ -528,7 +619,7 @@ BEGIN
     END IF;
 
     -- Generate assignment ID
-    v_assignment_id := 'ASN-' || p_complaint_id || '-' || TO_CHAR(CURRENT_TIMESTAMP, 'YYYYMMDDHH24MISS');
+    v_assignment_id := 'ASN-' || SUBSTR(REPLACE(uuid_generate_v4()::TEXT, '-', ''), 1, 12);
 
     -- Create assignment
     INSERT INTO assignments (
@@ -546,6 +637,11 @@ BEGIN
         p_actor,
         CURRENT_TIMESTAMP + INTERVAL '48 hours'
     );
+
+    INSERT INTO notifications (target_role, target_user_id, complaint_id, message)
+    SELECT 'OFFICER', u.user_id, p_complaint_id,
+           'Complaint ' || p_complaint_id || ' has been assigned to you.'
+    FROM app_users u WHERE u.officer_id = v_chosen_officer AND u.role = 'OFFICER';
 
     -- Update complaint
     UPDATE complaints

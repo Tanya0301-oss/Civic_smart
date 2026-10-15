@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!await CivicAPI.requireRole('ADMIN')) return;
     const navItems = document.querySelectorAll('.admin-nav-item');
     const views = document.querySelectorAll('.admin-view');
     const viewTitle = document.getElementById('viewTitle');
@@ -28,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusModal = document.getElementById('statusModal');
     const modalRef = document.getElementById('modalComplaintRef');
     const modalStatusSelect = document.getElementById('modalStatusSelect');
+    const modalStatusReason = document.getElementById('modalStatusReason');
+    const modalReviewEvidence = document.getElementById('modalReviewEvidence');
     const closeStatusModal = document.getElementById('closeStatusModal');
     const saveStatusBtn = document.getElementById('saveStatusBtn');
 
@@ -49,7 +52,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return officer ? officer.name : 'Unassigned';
     }
 
-    function renderStats() {
+    async function renderStats() {
+        if (CivicAPI.isDatabaseConnected()) {
+            try {
+                const stats = await CivicAPI.getOverview();
+                const values = document.querySelectorAll('.admin-stat-val');
+                const footers = document.querySelectorAll('.admin-stat-footer');
+                [stats.total, stats.pending, stats.in_progress, stats.critical, stats.resolved, stats.clusters].forEach((value, index) => {
+                    if (values[index]) values[index].textContent = value ?? 0;
+                });
+                if (footers[0]) footers[0].textContent = `${CivicData.getNotifications('ADMIN').length} admin alerts in notification log`;
+                return;
+            } catch (error) {
+                console.warn('[Admin] Could not load database metrics:', error);
+                document.querySelectorAll('.admin-stat-val').forEach(value => { value.textContent = '—'; });
+                const footer = document.querySelector('.admin-stat-footer');
+                if (footer) footer.textContent = 'Database metrics could not be refreshed';
+                return;
+            }
+        }
         const all = CivicData.getComplaints();
         const total = all.length;
         const pending = all.filter(c => ['Reported', 'Verified'].includes(c.status)).length;
@@ -66,10 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function rowActions(c) {
-        const canAllocate = ['Reported', 'Verified'].includes(c.status) || !c.assignedOfficerId;
+        const canAllocate = ['Reported', 'Verified'].includes(c.status) && !c.assignedOfficerId;
+        const canReview = ['Reported', 'Verified', 'Completion Submitted', 'Disputed'].includes(c.status);
         return `
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                <button class="table-btn status-modal-trigger" data-id="${c.id}" data-status="${c.status}">Status</button>
+                ${canReview ? `<button class="table-btn status-modal-trigger" data-id="${c.id}" data-status="${c.status}">Review</button>` : ''}
                 ${canAllocate ? `<button class="table-btn table-btn--primary allocate-trigger" data-id="${c.id}">Allocate</button>` : ''}
                 <a href="track.html?id=${c.id}" class="table-btn" target="_blank">Track</a>
             </div>
@@ -223,16 +245,48 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = () => {
                 activeComplaintId = btn.dataset.id;
                 if (modalRef) modalRef.textContent = `Modifying record #${activeComplaintId}`;
-                if (modalStatusSelect) modalStatusSelect.value = btn.dataset.status;
+                if (modalStatusSelect) {
+                    const choices = {
+                        Reported: ['Verified', 'Rejected'],
+                        Verified: ['Rejected'],
+                        'Completion Submitted': ['Resolved', 'In Progress'],
+                        Disputed: ['Resolved', 'In Progress', 'Rejected']
+                    }[btn.dataset.status] || [];
+                    modalStatusSelect.innerHTML = choices.map(status => `<option value="${status}">${status}</option>`).join('');
+                    modalStatusSelect.disabled = choices.length === 0;
+                }
+                if (modalStatusReason) modalStatusReason.value = '';
+                if (modalReviewEvidence) {
+                    const submission = CivicData.getAssignments().find(item => item.complaintId === activeComplaintId && item.state === 'COMPLETION_SUBMITTED');
+                    modalReviewEvidence.textContent = submission
+                        ? `Officer completion note / evidence reference: ${submission.completionNote || 'No details provided.'}`
+                        : '';
+                    modalReviewEvidence.style.display = submission ? 'block' : 'none';
+                }
                 if (statusModal) statusModal.style.display = 'flex';
             };
         });
 
         document.querySelectorAll('.allocate-trigger').forEach(btn => {
-            btn.onclick = () => {
-                const result = CivicData.allocateOfficer(btn.dataset.id);
-                btn.textContent = result.ok ? `Assigned: ${result.officer.name}` : 'No Match';
-                setTimeout(refreshAll, 500);
+            btn.onclick = async () => {
+                const reason = prompt('Reason for manual officer allocation:')?.trim();
+                if (!reason) return;
+                btn.disabled = true;
+                try {
+                    if (CivicAPI.isDatabaseConnected()) {
+                        const result = await CivicAPI.allocateOfficer(btn.dataset.id, reason);
+                        btn.textContent = result.ok ? 'Assigned' : 'No Match';
+                    } else {
+                        const result = CivicData.allocateOfficer(btn.dataset.id);
+                        btn.textContent = result.ok ? 'Demo Assigned' : 'No Match';
+                        alert('Offline demo only: this allocation was not saved to PostgreSQL.');
+                    }
+                } catch (error) {
+                    alert(`Allocation failed: ${error.message}`);
+                } finally {
+                    btn.disabled = false;
+                    refreshAll();
+                }
             };
         });
     }
@@ -253,13 +307,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const agingBtn = document.getElementById('simulateAgingBtn');
     if (agingBtn) {
-        agingBtn.addEventListener('click', () => {
-            CivicData.simulateAging();
-            agingBtn.innerHTML = '&#10003; Aging Applied (+24h)';
-            refreshAll();
-            setTimeout(() => {
-                agingBtn.innerHTML = 'Simulate Aging (+24h Boost)';
-            }, 2200);
+        agingBtn.addEventListener('click', async () => {
+            agingBtn.disabled = true;
+            try {
+                if (CivicAPI.isDatabaseConnected()) {
+                    await CivicAPI.simulateAging();
+                    agingBtn.innerHTML = '&#10003; Aging Applied (+24h)';
+                } else {
+                    CivicData.simulateAging();
+                    agingBtn.innerHTML = 'Demo Aging Applied';
+                    alert('Offline demo only: aging was not saved to PostgreSQL.');
+                }
+                refreshAll();
+            } catch (error) {
+                alert(`Aging simulation failed: ${error.message}`);
+            } finally {
+                setTimeout(() => {
+                    agingBtn.innerHTML = 'Simulate Aging (+24h Boost)';
+                    agingBtn.disabled = false;
+                }, 2200);
+            }
         });
     }
 
@@ -274,13 +341,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const result = await CivicAPI.runScheduler('Authority Console');
                     refreshAll();
                     if (result.ok && result.selected) {
-                        recalcBtn.innerHTML = `Assigned #${result.selected.id}`;
+                        const score = result.selected.priorityScore;
+                        const parts = `Base ${result.selected.baseSeverity} + dup ${result.selected.duplicateBoost} + aging ${result.selected.agingBoost} + SLA ${result.selected.deadlineUrgencyBoost}`;
+                        recalcBtn.innerHTML = `Assigned #${result.selected.id} · ${score}`;
+                        recalcBtn.title = `${parts}. ${result.selected.reason || ''}`;
                     } else {
                         recalcBtn.innerHTML = result.reason === 'NO_ELIGIBLE_OFFICER' ? 'No Officer Available' : 'No Eligible Case';
+                        alert(result.message || 'The scheduler did not allocate a complaint.');
                     }
                 } catch (err) {
                     console.warn('[Admin] Integrated scheduler failed:', err);
-                    recalcBtn.innerHTML = 'Scheduler Failed';
+                    const reason = err.data?.reason;
+                    recalcBtn.innerHTML = reason === 'NO_ELIGIBLE_OFFICER' ? 'No Officer Available'
+                        : reason === 'NO_ELIGIBLE_COMPLAINTS' ? 'No Eligible Case' : 'Scheduler Failed';
+                    alert(err.message);
                 }
                 setTimeout(() => {
                     recalcBtn.innerHTML = 'Re-run Scheduler';
@@ -289,14 +363,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            recalcBtn.innerHTML = 'Backend Required';
+            alert('The scheduler requires the Flask and PostgreSQL backend. No local queue was changed.');
             setTimeout(() => {
-                refreshAll();
-                recalcBtn.innerHTML = 'Offline Queue Refreshed';
-                setTimeout(() => {
-                    recalcBtn.innerHTML = 'Re-run Scheduler';
-                    recalcBtn.disabled = false;
-                }, 1800);
-            }, 300);
+                recalcBtn.innerHTML = 'Re-run Scheduler';
+                recalcBtn.disabled = false;
+            }, 1800);
         });
     }
 
@@ -307,12 +379,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (saveStatusBtn && statusModal) {
-        saveStatusBtn.addEventListener('click', () => {
+        saveStatusBtn.addEventListener('click', async () => {
             if (activeComplaintId && modalStatusSelect) {
-                CivicData.updateComplaintStatus(activeComplaintId, modalStatusSelect.value);
-                refreshAll();
+                saveStatusBtn.disabled = true;
+                try {
+                    const status = modalStatusSelect.value;
+                    const reason = modalStatusReason ? modalStatusReason.value.trim() : '';
+                    if (['Rejected', 'Resolved', 'In Progress'].includes(status) && !reason) {
+                        alert('Add a review reason before saving this transition.');
+                        return;
+                    }
+                    if (CivicAPI.isDatabaseConnected()) {
+                        await CivicAPI.updateStatus(activeComplaintId, status, reason);
+                    } else {
+                        CivicData.updateComplaintStatus(activeComplaintId, status, 'Offline demo');
+                        alert('Offline demo only: this status change was not saved to PostgreSQL.');
+                    }
+                    refreshAll();
+                    statusModal.style.display = 'none';
+                } catch (error) {
+                    alert(`Status update failed: ${error.message}`);
+                } finally {
+                    saveStatusBtn.disabled = false;
+                }
             }
-            statusModal.style.display = 'none';
         });
     }
 

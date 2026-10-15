@@ -1,13 +1,29 @@
 /**
  * Civic Smart - PostgreSQL Backend Integration & Sync Bridge
- * Transparently hooks into CivicData to synchronize state with the PostgreSQL DBMS.
- * Works seamlessly in both live database mode and offline localStorage demo mode.
+ * PostgreSQL API client. localStorage is only a UI cache for rendering existing pages.
  */
 
 const CivicAPI = (() => {
     const API_BASE = 'http://localhost:5000/api';
     let isConnected = false;
-    let checkedConnection = false;
+    let currentUser = null;
+    let csrfToken = null;
+
+    async function request(path, options = {}) {
+        const response = await fetch(`${API_BASE}${path}`, {
+            ...options,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}), ...(options.headers || {}) }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const error = new Error(data.message || data.error || `Request failed (${response.status}).`);
+            error.status = response.status;
+            error.data = data;
+            throw error;
+        }
+        return data;
+    }
 
     /**
      * Test connection to PostgreSQL REST API backend
@@ -16,19 +32,22 @@ const CivicAPI = (() => {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 1500);
-            const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+            const res = await fetch(`${API_BASE}/health`, { signal: controller.signal, credentials: 'include' });
             clearTimeout(timeoutId);
 
             if (res.ok) {
                 const data = await res.json();
                 isConnected = data.database && data.database.connected;
-                checkedConnection = true;
                 updateBadge(isConnected, data.database ? data.database.database : null);
+                if (isConnected) {
+                    const auth = await request('/auth/session');
+                    currentUser = auth.user;
+                    csrfToken = auth.csrfToken;
+                }
                 return { online: true, databaseConnected: isConnected, info: data };
             }
         } catch (e) {
             isConnected = false;
-            checkedConnection = true;
             updateBadge(false);
         }
         return { online: false, databaseConnected: false };
@@ -40,25 +59,35 @@ const CivicAPI = (() => {
     async function syncFromPostgres() {
         if (!isConnected) return false;
         try {
-            const [complaintsRes, officersRes, assignRes, auditRes] = await Promise.all([
-                fetch(`${API_BASE}/complaints`),
-                fetch(`${API_BASE}/officers`),
-                fetch(`${API_BASE}/assignments`),
-                fetch(`${API_BASE}/audit`)
+            const sessionResponse = await request('/auth/session');
+            currentUser = sessionResponse.user;
+            csrfToken = sessionResponse.csrfToken;
+            if (!currentUser) return false;
+            let complaintCount = 0;
+            const [complaintsRes, officersRes, assignRes, auditRes, notificationsRes] = await Promise.all([
+                fetch(`${API_BASE}/complaints`, { credentials: 'include' }),
+                fetch(`${API_BASE}/officers`, { credentials: 'include' }),
+                fetch(`${API_BASE}/assignments`, { credentials: 'include' }),
+                fetch(`${API_BASE}/audit`, { credentials: 'include' }),
+                fetch(`${API_BASE}/notifications`, { credentials: 'include' })
             ]);
+
+            const requiredResponses = currentUser.role === 'CITIZEN'
+                ? [complaintsRes, auditRes, notificationsRes]
+                : [complaintsRes, officersRes, assignRes, auditRes, notificationsRes];
+            if (requiredResponses.some(response => !response.ok)) {
+                throw new Error('One or more authorized database views could not be refreshed.');
+            }
 
             if (complaintsRes.ok) {
                 const complaints = await complaintsRes.json();
-                if (complaints && complaints.length > 0) {
-                    localStorage.setItem('civics_smart_records_v2', JSON.stringify(complaints));
-                }
+                complaintCount = complaints.length;
+                localStorage.setItem('civics_smart_records_v2', JSON.stringify(complaints));
             }
 
             if (officersRes.ok) {
                 const officers = await officersRes.json();
-                if (officers && officers.length > 0) {
-                    localStorage.setItem('civics_smart_officers_v2', JSON.stringify(officers));
-                }
+                localStorage.setItem('civics_smart_officers_v2', JSON.stringify(officers));
             }
 
             if (assignRes.ok) {
@@ -71,8 +100,13 @@ const CivicAPI = (() => {
                 localStorage.setItem('civics_smart_audit_v2', JSON.stringify(audit));
             }
 
+            if (notificationsRes.ok) {
+                const notifications = await notificationsRes.json();
+                localStorage.setItem('civics_smart_notifications_v2', JSON.stringify(notifications));
+            }
+
             console.log('[CivicAPI] Live PostgreSQL records synced into local store.');
-            window.dispatchEvent(new CustomEvent('civic:data-synced', { detail: { count: complaints ? complaints.length : 0 } }));
+            window.dispatchEvent(new CustomEvent('civic:data-synced', { detail: { count: complaintCount } }));
             return true;
         } catch (err) {
             console.warn('[CivicAPI] Sync failed:', err.message);
@@ -80,68 +114,95 @@ const CivicAPI = (() => {
         }
     }
 
-    /**
-     * Asynchronously mirror local complaint creation to PostgreSQL
-     */
-    async function mirrorCreateComplaint(complaint) {
-        if (!isConnected) return;
+    async function login(username, password, role) {
+        const existing = await request('/auth/session');
+        if (existing.user) {
+            csrfToken = existing.csrfToken;
+            await request('/auth/logout', { method: 'POST', body: '{}' });
+            csrfToken = null;
+        }
+        const result = await request('/auth/login', {
+            method: 'POST', body: JSON.stringify({ username, password, role })
+        });
+        currentUser = result.user;
+        csrfToken = result.csrfToken;
+        return result.user;
+    }
+
+    async function logout() {
+        await request('/auth/logout', { method: 'POST', body: '{}' });
+        currentUser = null;
+        csrfToken = null;
+        window.location.assign('login.html');
+    }
+
+    async function requireRole(role) {
         try {
-            await fetch(`${API_BASE}/complaints`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(complaint)
-            });
-            console.log('[CivicAPI] Complaint mirrored to PostgreSQL:', complaint.id);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror complaint creation:', err.message);
+            const result = await request('/auth/session');
+            currentUser = result.user;
+            csrfToken = result.csrfToken;
+            if (!currentUser || (role && currentUser.role !== role)) {
+                window.location.assign('login.html');
+                return false;
+            }
+            const health = await checkHealth();
+            if (!health.databaseConnected) {
+                alert('The PostgreSQL backend is unavailable. This portal needs the database to load official records.');
+                return false;
+            }
+            if (!await syncFromPostgres()) {
+                alert('The database is available, but this portal could not load its authorized records. Refresh and try again.');
+                return false;
+            }
+            return true;
+        } catch (_) {
+            window.location.assign('login.html');
+            return false;
         }
     }
 
-    /**
-     * Asynchronously mirror status update to PostgreSQL
-     */
-    async function mirrorUpdateStatus(id, status, actor) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints/${encodeURIComponent(id)}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status, actor })
-            });
-            console.log('[CivicAPI] Status update mirrored to PostgreSQL:', id, status);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror status update:', err.message);
-        }
+    async function createComplaint(complaint) {
+        const saved = await request('/complaints', { method: 'POST', body: JSON.stringify(complaint) });
+        await syncFromPostgres();
+        return saved;
     }
 
-    /**
-     * Asynchronously mirror officer allocation to PostgreSQL
-     */
-    async function mirrorAllocateOfficer(complaintId, actor) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints/${encodeURIComponent(complaintId)}/allocate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ actor })
-            });
-            console.log('[CivicAPI] Allocation mirrored to PostgreSQL:', complaintId);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror allocation:', err.message);
-        }
+    async function getComplaint(id) {
+        return request(`/complaints/${encodeURIComponent(id)}`);
     }
 
-    /**
-     * Asynchronously mirror aging simulation to PostgreSQL
-     */
-    async function mirrorSimulateAging() {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/scheduler/aging`, { method: 'POST' });
-            console.log('[CivicAPI] Aging simulation executed in PostgreSQL.');
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to trigger PostgreSQL aging:', err.message);
-        }
+    async function updateStatus(id, status, reason = '') {
+        const saved = await request(`/complaints/${encodeURIComponent(id)}/status`, {
+            method: 'PATCH', body: JSON.stringify({ status, reason })
+        });
+        await syncFromPostgres();
+        return saved;
+    }
+
+    async function allocateOfficer(id, reason = '') {
+        const result = await request(`/complaints/${encodeURIComponent(id)}/allocate`, {
+            method: 'POST', body: JSON.stringify({ reason })
+        });
+        await syncFromPostgres();
+        return result;
+    }
+
+    async function updateAssignment(id, state, details = {}) {
+        const result = await request(`/assignments/${encodeURIComponent(id)}/state`, {
+            method: 'PATCH', body: JSON.stringify({ state, ...details })
+        });
+        await syncFromPostgres();
+        return result;
+    }
+
+    async function simulateAging() {
+        const result = await request('/scheduler/aging', { method: 'POST', body: '{}' });
+        await syncFromPostgres();
+        return result;
+    }
+
+    async function getOverview() {
+        return request('/analytics/overview');
     }
 
     /**
@@ -152,57 +213,12 @@ const CivicAPI = (() => {
             return { ok: false, offline: true, message: 'PostgreSQL backend is offline.' };
         }
 
-        const res = await fetch(`${API_BASE}/scheduler/run`, {
+        const result = await request('/scheduler/run', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ actor })
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            return {
-                ok: false,
-                status: res.status,
-                ...data,
-                message: data.message || data.error || 'Scheduler request failed.'
-            };
-        }
         await syncFromPostgres();
-        return data;
-    }
-
-    /**
-     * Decorate CivicData methods to achieve transparent dual-write
-     */
-    function hookCivicData() {
-        if (typeof CivicData === 'undefined') return;
-
-        const origCreate = CivicData.createComplaint;
-        CivicData.createComplaint = function (payload) {
-            const created = origCreate.call(CivicData, payload);
-            mirrorCreateComplaint(created);
-            return created;
-        };
-
-        const origStatus = CivicData.updateComplaintStatus;
-        CivicData.updateComplaintStatus = function (id, status, actor) {
-            const updated = origStatus.call(CivicData, id, status, actor);
-            mirrorUpdateStatus(id, status, actor);
-            return updated;
-        };
-
-        const origAllocate = CivicData.allocateOfficer;
-        CivicData.allocateOfficer = function (complaintId, actor) {
-            const result = origAllocate.call(CivicData, complaintId, actor);
-            mirrorAllocateOfficer(complaintId, actor);
-            return result;
-        };
-
-        const origAging = CivicData.simulateAging;
-        CivicData.simulateAging = function () {
-            const result = origAging.call(CivicData);
-            mirrorSimulateAging();
-            return result;
-        };
+        return result;
     }
 
     /**
@@ -235,7 +251,7 @@ const CivicAPI = (() => {
 
     // Auto-initialize on DOM ready
     document.addEventListener('DOMContentLoaded', () => {
-        hookCivicData();
+        document.querySelectorAll('[data-sign-out]').forEach(button => button.addEventListener('click', logout));
         checkHealth().then(status => {
             if (status.databaseConnected) {
                 syncFromPostgres();
@@ -245,7 +261,18 @@ const CivicAPI = (() => {
 
     return {
         checkHealth,
+        login,
+        logout,
+        requireRole,
+        currentUser: () => currentUser,
         syncFromPostgres,
+        createComplaint,
+        getComplaint,
+        updateStatus,
+        allocateOfficer,
+        updateAssignment,
+        simulateAging,
+        getOverview,
         runScheduler,
         isDatabaseConnected: () => isConnected,
         API_BASE

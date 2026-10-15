@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -100,7 +101,24 @@ time_t parseIsoTime(const string& text) {
     value.tm_min = minute;
     value.tm_sec = second;
     value.tm_isdst = -1;
-    return mktime(&value);
+
+    size_t zoneStart = text.find_first_of("Z+-", 19);
+    if (zoneStart == string::npos) return mktime(&value);
+    time_t timestamp = mktime(&value);
+    int sourceOffset = 0;
+    if (text[zoneStart] != 'Z') {
+        int offsetHours = 0, offsetMinutes = 0;
+        if (sscanf(text.c_str() + zoneStart + 1, "%d:%d", &offsetHours, &offsetMinutes) != 2) return timestamp;
+        sourceOffset = (offsetHours * 60 + offsetMinutes) * 60;
+        if (text[zoneStart] == '-') sourceOffset = -sourceOffset;
+    }
+    tm utcParts = {};
+    tm* utcPointer = gmtime(&timestamp);
+    if (!utcPointer) return timestamp;
+    utcParts = *utcPointer;
+    time_t localAsUtc = mktime(&utcParts);
+    int localOffset = static_cast<int>(difftime(timestamp, localAsUtc));
+    return timestamp + localOffset - sourceOffset;
 }
 
 struct StatusHistoryEntry {

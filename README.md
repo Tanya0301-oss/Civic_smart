@@ -183,7 +183,7 @@ README_OS_BACKEND.md
 The priority score is based on:
 
 ```text
-Priority Score = Base Severity + Duplicate Boost + Aging Boost
+Priority Score = min(99, Base Severity + Capped Duplicate Boost + Ready Aging Boost + SLA Urgency)
 ```
 
 Example:
@@ -206,7 +206,16 @@ Civic Smart now includes a complete production-grade **PostgreSQL DBMS** impleme
 - **1-Click Database Setup**: `setup_database.bat`
 
 For complete step-by-step setup instructions, please read:
-👉 **[POSTGRES_SETUP_GUIDE.md](file:///c:/Users/suhan/OneDrive/Desktop/Projects/Civic_smart/Civic_smart/POSTGRES_SETUP_GUIDE.md)**
+**[POSTGRES_SETUP_GUIDE.md](POSTGRES_SETUP_GUIDE.md)** and **[AUTHENTICATION_AND_WORKFLOW.md](AUTHENTICATION_AND_WORKFLOW.md)**.
+
+After applying the database schema and seed data, reset a demo citizen/officer password and create an admin login from the `backend` folder:
+
+```powershell
+py set_account_password.py
+py create_admin.py
+```
+
+Portal sign-in uses a database-backed session. Citizen history, officer assignments, and admin operations require their matching account role. Anonymous report submission and complaint-reference tracking remain available; offline browser records are labelled as demo-only.
 
 ## Current Limitations & Fallback Mode
 

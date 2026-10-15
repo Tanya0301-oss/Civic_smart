@@ -180,6 +180,7 @@
                     </div>
                     <a href="officer.html" class="btn btn--secondary btn--sm">Officer Portal</a>
                     <a href="index.html" class="btn btn--secondary btn--sm">View Citizen Portal</a>
+                    <button type="button" class="btn btn--secondary btn--sm" data-sign-out>Sign Out</button>
                 </div>
             </header>
 
@@ -558,19 +559,16 @@
         <div style="background: var(--ivory); border-radius: var(--radius-lg); max-width: 440px; width: 100%; padding: var(--space-2xl); border: var(--border-thin); box-shadow: var(--shadow-lg);">
             <h3 style="font-family: var(--font-heading); font-size: var(--text-2xl); margin-bottom: var(--space-sm);">Update Ticket Status</h3>
             <p id="modalComplaintRef" style="font-size: var(--text-sm); color: var(--taupe); margin-bottom: var(--space-lg);"></p>
+            <div id="modalReviewEvidence" style="display: none; background: var(--white); border: var(--border-thin); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-lg); font-size: var(--text-sm); color: var(--taupe);"></div>
             
             <div class="form-group">
                 <label class="form-label">New Process State</label>
                 <select id="modalStatusSelect" class="form-select">
-                    <option value="Reported">Reported (NEW)</option>
-                    <option value="Verified">Verified (READY)</option>
-                    <option value="Assigned">Assigned (DISPATCHED)</option>
-                    <option value="In Progress">In Progress (RUNNING)</option>
-                    <option value="Blocked">Blocked (WAITING)</option>
-                    <option value="Completion Submitted">Completion Submitted (AWAITING VERIFICATION)</option>
-                    <option value="Resolved">Resolved (TERMINATED)</option>
-                    <option value="Disputed">Disputed (REVIEW)</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="modalStatusReason">Reason (required for rejection or return to work)</label>
+                <textarea id="modalStatusReason" class="form-input" rows="3" maxlength="1000" placeholder="Record why this status changed"></textarea>
             </div>
 
             <div style="display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-xl);">

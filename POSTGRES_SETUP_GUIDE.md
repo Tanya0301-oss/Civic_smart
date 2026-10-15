@@ -281,11 +281,12 @@ python app.py
 
 ### 5.2 Dynamic Priority Score Formula (Implemented in Stored Trigger)
 
-$$\text{Priority Score} = \text{Base Severity} + \text{Duplicate Boost} + \text{Aging Boost}$$
+$$P = \min(99, B + D + A + S)$$
 
 - **Base Severity**: `Critical` (90), `High` (75), `Medium` (60), `Low` (40)
-- **Duplicate Boost**: $\max(0, \text{duplicate\_count} - 1) \times 2$
-- **Aging Boost**: $\text{waiting\_days} \times 2$
+- **Duplicate Boost**: $D = \min(20, (\text{duplicate\_count} - 1) \times 2)$
+- **Ready Aging Boost**: $A = \text{waiting\_days} \times 2$ while status is `Reported` or `Verified`.
+- **SLA Urgency**: overdue $+20$; within 24h $+15$; 48h $+10$; 72h $+5$; otherwise $0$.
 - **Queue Lane**:
   - `Queue 0 (Critical)`: Score $\ge 85$
   - `Queue 1 (High Urgency)`: $70 \le \text{Score} < 85$
