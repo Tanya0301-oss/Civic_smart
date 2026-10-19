@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const session = window.CivicAuth && CivicAuth.requireRole(['OFFICER']);
+    if (!session) return;
     const officerSelect = document.getElementById('officerSelect');
     const officerName = document.getElementById('officerName');
     const officerMeta = document.getElementById('officerMeta');
@@ -7,14 +9,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const auditList = document.getElementById('officerAudit');
 
     function populateOfficers() {
-        officerSelect.innerHTML = CivicData.getOfficers().map(officer => `
+        officerSelect.innerHTML = CivicData.getOfficers().filter(officer => officer.id === session.userId).map(officer => `
             <option value="${officer.id}">${officer.name} - ${officer.department}</option>
         `).join('');
-        officerSelect.value = localStorage.getItem('civics_smart_active_officer') || CivicData.getOfficers()[0].id;
+        officerSelect.value = session.userId;
+        officerSelect.disabled = true;
     }
 
     function currentOfficer() {
-        return CivicData.getOfficers().find(officer => officer.id === officerSelect.value) || CivicData.getOfficers()[0];
+        return CivicData.getOfficers().find(officer => officer.id === session.userId);
     }
 
     function renderOfficerHeader(officer) {
@@ -29,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAssignments() {
         const officer = currentOfficer();
         renderOfficerHeader(officer);
-        localStorage.setItem('civics_smart_active_officer', officer.id);
 
         const assignments = CivicData.getAssignments()
             .filter(a => a.officerId === officer.id)

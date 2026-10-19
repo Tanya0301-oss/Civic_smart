@@ -23,7 +23,7 @@ const CivicAPI = (() => {
                 const data = await res.json();
                 isConnected = data.database && data.database.connected;
                 checkedConnection = true;
-                updateBadge(isConnected, data.database ? data.database.database : null);
+                if (!isConnected) updateBadge(false);
                 return { online: true, databaseConnected: isConnected, info: data };
             }
         } catch (e) {
@@ -46,36 +46,25 @@ const CivicAPI = (() => {
                 fetch(`${API_BASE}/assignments`),
                 fetch(`${API_BASE}/audit`)
             ]);
-
-            if (complaintsRes.ok) {
-                const complaints = await complaintsRes.json();
-                if (complaints && complaints.length > 0) {
-                    localStorage.setItem('civics_smart_records_v2', JSON.stringify(complaints));
-                }
+            if (![complaintsRes, officersRes, assignRes, auditRes].every(response => response.ok)) {
+                throw new Error('Live datastore sync returned an unsuccessful response.');
             }
-
-            if (officersRes.ok) {
-                const officers = await officersRes.json();
-                if (officers && officers.length > 0) {
-                    localStorage.setItem('civics_smart_officers_v2', JSON.stringify(officers));
-                }
-            }
-
-            if (assignRes.ok) {
-                const assignments = await assignRes.json();
-                localStorage.setItem('civics_smart_assignments_v2', JSON.stringify(assignments));
-            }
-
-            if (auditRes.ok) {
-                const audit = await auditRes.json();
-                localStorage.setItem('civics_smart_audit_v2', JSON.stringify(audit));
-            }
+            const [complaints, officers, assignments, audit] = await Promise.all([
+                complaintsRes.json(), officersRes.json(), assignRes.json(), auditRes.json()
+            ]);
+            // Replace all mirrors together, including when PostgreSQL tables are empty.
+            localStorage.setItem('civics_smart_records_v2', JSON.stringify(complaints || []));
+            localStorage.setItem('civics_smart_officers_v2', JSON.stringify(officers || []));
+            localStorage.setItem('civics_smart_assignments_v2', JSON.stringify(assignments || []));
+            localStorage.setItem('civics_smart_audit_v2', JSON.stringify(audit || []));
+            updateBadge(true);
 
             console.log('[CivicAPI] Live PostgreSQL records synced into local store.');
             window.dispatchEvent(new CustomEvent('civic:data-synced', { detail: { count: complaints ? complaints.length : 0 } }));
             return true;
         } catch (err) {
             console.warn('[CivicAPI] Sync failed:', err.message);
+            updateBadge(false);
             return false;
         }
     }

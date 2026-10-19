@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const removePhotoBtn = document.getElementById('removePhotoBtn');
     const detectLocationBtn = document.getElementById('detectLocationBtn');
     const locationInput = document.getElementById('location');
+    const locationSuggestions = document.getElementById('locationSuggestions');
+    const wardSelect = document.getElementById('ward');
+    const tehsilSelect = document.getElementById('tehsil');
     const successModal = document.getElementById('successModal');
 
     let uploadedImageData = null;
@@ -68,6 +71,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // The demo detector selects an approved address inside the selected ward.
+    if (wardSelect && window.DehradunLocations) {
+        wardSelect.innerHTML = '<option value="" disabled selected>Select municipal ward</option>' +
+            DehradunLocations.wards.map(item => `<option value="${item.ward}">${item.ward}</option>`).join('');
+        if (tehsilSelect) { tehsilSelect.value = 'Dehradun Sadar'; tehsilSelect.disabled = true; }
+        wardSelect.addEventListener('change', () => {
+            const entry = DehradunLocations.forWard(wardSelect.value);
+            if (locationSuggestions) locationSuggestions.innerHTML = entry
+                ? entry.addresses.map(address => `<option value="${address}">`).join('') : '';
+            if (entry && locationInput && !locationInput.value.trim()) locationInput.value = entry.addresses[0];
+        });
+    }
+
     // Geolocation detection simulation
     if (detectLocationBtn && locationInput) {
         detectLocationBtn.addEventListener('click', () => {
@@ -75,7 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
             detectLocationBtn.innerHTML = 'Locating...';
             
             setTimeout(() => {
-                locationInput.value = 'Near DLF Phase 2, Cyber Hub Road (28.4950° N, 77.0895° E)';
+                const selected = DehradunLocations && DehradunLocations.forWard(wardSelect.value);
+                if (!selected) {
+                    alert('Select a supported Dehradun municipal ward first.');
+                } else {
+                    locationInput.value = selected.addresses[0];
+                }
                 detectLocationBtn.disabled = false;
                 detectLocationBtn.innerHTML = '&#10003; Located';
                 setTimeout(() => {
@@ -98,10 +119,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const ward = document.getElementById('ward').value;
             const severityRadio = document.querySelector('input[name="severity"]:checked');
             const severity = severityRadio ? severityRadio.value : 'Medium';
-            const citizenName = document.getElementById('citizenName').value.trim() || 'Anonymous Citizen';
+            const signedIn = window.CivicAuth && CivicAuth.getCurrentSession();
+            const citizenName = signedIn && signedIn.role === 'CITIZEN' ? signedIn.name : (document.getElementById('citizenName').value.trim() || 'Anonymous Citizen');
 
             if (!category || !tehsil || !ward || !title || !description || !location) {
                 alert('Please fill in all mandatory fields.');
+                return;
+            }
+
+            if (!DehradunLocations.validate(ward, tehsil, location)) {
+                alert('Choose a supported Dehradun ward and enter a location within Dehradun.');
                 return;
             }
 
@@ -114,8 +141,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ward,
                 severity,
                 citizen: citizenName,
+                citizenId: signedIn && signedIn.role === 'CITIZEN' ? signedIn.userId : null,
                 photo: uploadedImageData
             });
+            if (!newComplaint) {
+                alert('The selected ward and location could not be validated. Please check them and try again.');
+                return;
+            }
 
             // Update modal
             document.getElementById('assignedComplaintId').textContent = '#' + newComplaint.id;

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const session = window.CivicAuth && CivicAuth.requireRole(['CITIZEN']);
+    if (!session) return;
     const container = document.getElementById('trackingContainer');
     const searchForm = document.getElementById('trackSearchForm');
     const searchInput = document.getElementById('trackInput');
@@ -45,8 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderComplaint(id) {
         const cleanId = id.toUpperCase().replace('#', '').trim();
         const data = CivicData.getComplaints().find(item => item.id === cleanId);
+        const belongsToCitizen = data && (data.citizenId === session.userId || data.citizen === session.name);
 
-        if (!data) {
+        if (!belongsToCitizen) {
             container.innerHTML = `
                 <div class="card" style="text-align: center; padding: var(--space-4xl) var(--space-xl);">
                     <div style="font-size: var(--text-3xl); margin-bottom: var(--space-md); color: var(--status-critical);">&#9888;</div>

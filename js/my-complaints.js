@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const session = window.CivicAuth && CivicAuth.requireRole(['CITIZEN']);
+    if (!session) return;
     const listContainer = document.getElementById('complaintsList');
     const searchInput = document.getElementById('complaintSearch');
     const filterTabs = document.querySelectorAll('.filter-tab');
@@ -25,7 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderComplaints() {
         if (!listContainer) return;
 
-        const allComplaints = CivicData.getComplaints();
+        const allComplaints = CivicData.getComplaints().filter(c =>
+            c.citizenId === session.userId || c.citizen === session.name
+        );
         updateStats(allComplaints);
 
         const filtered = allComplaints.filter(c => {

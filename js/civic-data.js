@@ -73,8 +73,8 @@ const CivicData = (() => {
             title: 'Underground drinking water pipeline burst with heavy wastage',
             description: 'Pipeline rupture flooding the service lane and reducing water pressure.',
             category: 'Water',
-            location: 'Harrawala main road, near railway crossing',
-            tehsil: 'Doiwala',
+            location: 'Harrawala main road, Dehradun',
+            tehsil: 'Dehradun Sadar',
             ward: 'Ward 97 - Harrawala',
             department: 'Municipal Water & Sewerage Board',
             priorityScore: 88,
@@ -171,11 +171,11 @@ const CivicData = (() => {
     ];
 
     const defaultOfficers = [
-        { id: 'OFF-RD-104', name: 'Er. Rajesh Varma', role: 'Junior Engineer - Roads', department: 'Road Infrastructure & Maintenance', skills: ['Roads', 'Drainage'], serviceAreas: ['Dehradun Municipal Corporation', 'Ward 32 - Ballupur', 'Ward 14 - Rishpana', 'Ward 78 - Turner Road'], capacity: 4, availability: 'Available' },
-        { id: 'OFF-WT-201', name: 'S. K. Nambiar', role: 'Assistant Executive Engineer', department: 'Municipal Water & Sewerage Board', skills: ['Water', 'Drainage'], serviceAreas: ['Dehradun Municipal Corporation', 'Ward 97 - Harrawala', 'Ward 84 - Banjarowala', 'Ward 57 - Nehru Colony'], capacity: 3, availability: 'Available' },
-        { id: 'OFF-SW-304', name: 'P. Anand', role: 'Sanitary Inspector', department: 'Solid Waste & Sanitation Department', skills: ['Waste'], serviceAreas: ['Dehradun Municipal Corporation', 'Ward 66 - Raipur', 'Ward 70 - Lakhi Bag', 'Ward 80 - Rest Camp'], capacity: 5, availability: 'Available' },
-        { id: 'OFF-EL-118', name: 'Amitabh Sen', role: 'AE Electrical', department: 'Electrical & Street Lighting Wing', skills: ['Lighting', 'Electricity'], serviceAreas: ['Dehradun Municipal Corporation', 'Ward 4 - Rajpur', 'Ward 98 - Ballawala', 'Ward 19 - Ghanta Ghar Kalika Mandir Marg'], capacity: 3, availability: 'Available' },
-        { id: 'OFF-DR-220', name: 'Meera Kulkarni', role: 'Drainage Supervisor', department: 'Stormwater Drainage Division', skills: ['Drainage', 'Roads'], serviceAreas: ['Dehradun Municipal Corporation', 'Ward 14 - Rishpana', 'Ward 85 - Mothrowala', 'Ward 76 - Niranjanpur'], capacity: 3, availability: 'Available' }
+        { id: 'OFF-RD-104', name: 'Er. Rajesh Varma', role: 'Junior Engineer - Roads', department: 'Road Infrastructure & Maintenance', skills: ['Roads', 'Drainage'], serviceAreas: ['Ward 32 - Ballupur', 'Ward 14 - Rishpana', 'Ward 78 - Turner Road'], capacity: 4, availability: 'Available' },
+        { id: 'OFF-WT-201', name: 'S. K. Nambiar', role: 'Assistant Executive Engineer', department: 'Municipal Water & Sewerage Board', skills: ['Water', 'Drainage'], serviceAreas: ['Ward 97 - Harrawala', 'Ward 84 - Banjarowala', 'Ward 57 - Nehru Colony'], capacity: 3, availability: 'Available' },
+        { id: 'OFF-SW-304', name: 'P. Anand', role: 'Sanitary Inspector', department: 'Solid Waste & Sanitation Department', skills: ['Waste'], serviceAreas: ['Ward 66 - Raipur', 'Ward 70 - Lakhi Bag', 'Ward 80 - Rest Camp'], capacity: 5, availability: 'Available' },
+        { id: 'OFF-EL-118', name: 'Amitabh Sen', role: 'AE Electrical', department: 'Electrical & Street Lighting Wing', skills: ['Lighting', 'Electricity'], serviceAreas: ['Ward 4 - Rajpur', 'Ward 98 - Ballawala', 'Ward 19 - Ghanta Ghar Kalika Mandir Marg'], capacity: 3, availability: 'Available' },
+        { id: 'OFF-DR-220', name: 'Meera Kulkarni', role: 'Drainage Supervisor', department: 'Stormwater Drainage Division', skills: ['Drainage', 'Roads'], serviceAreas: ['Ward 14 - Rishpana', 'Ward 85 - Mothrowala', 'Ward 76 - Niranjanpur'], capacity: 3, availability: 'Available' }
     ];
 
     function read(key, fallback) {
@@ -238,6 +238,24 @@ const CivicData = (() => {
             })));
         }
         if (!localStorage.getItem(KEYS.notifications)) write(KEYS.notifications, []);
+        if (localStorage.getItem('civics_smart_location_migration_v1') !== 'complete') {
+            const records = read(KEYS.complaints, []);
+            records.forEach(complaint => {
+                const location = window.DehradunLocations && DehradunLocations.forWard(complaint.ward);
+                if (location) {
+                    complaint.tehsil = location.tehsil;
+                    if (!DehradunLocations.validate(complaint.ward, complaint.tehsil, complaint.location)) {
+                        complaint.location = location.addresses[0];
+                    }
+                    complaint.locationValidation = 'VALIDATED_DEMO_MASTER';
+                } else {
+                    // Preserve the complaint and its related history, but flag it for review.
+                    complaint.locationValidation = 'REVIEW_REQUIRED';
+                }
+            });
+            write(KEYS.complaints, records);
+            localStorage.setItem('civics_smart_location_migration_v1', 'complete');
+        }
     }
 
     function makeAssignment(id, complaintId, officerId, state, actor) {
@@ -322,6 +340,9 @@ const CivicData = (() => {
     }
 
     function createComplaint(payload) {
+        if (!window.DehradunLocations || !DehradunLocations.validate(payload.ward, payload.tehsil, payload.location)) {
+            return null;
+        }
         const complaints = getComplaints();
         const nextNumber = complaints.reduce((max, c) => {
             const n = Number(String(c.id).replace('CS', ''));
@@ -345,12 +366,14 @@ const CivicData = (() => {
             status: 'Reported',
             processState: 'NEW / READY (MLQ Pending Verification)',
             citizen: payload.citizen || 'Anonymous Citizen',
+            citizenId: payload.citizenId || null,
             date: stamp.date,
             time: stamp.time,
             photo: payload.photo || 'images/civic-problem.jpg',
             clusterId: `CLUS-${Math.floor(1000 + Math.random() * 8999)}`,
             assignedOfficerId: null,
-            ...priority
+            ...priority,
+            locationValidation: 'VALIDATED_DEMO_MASTER'
         };
         complaints.unshift(complaint);
         saveComplaints(complaints);
@@ -412,7 +435,7 @@ const CivicData = (() => {
             }))
             .filter(officer => officer.availability === 'Available')
             .filter(officer => officer.department === complaint.department || officer.skills.includes(complaint.category))
-            .filter(officer => officer.serviceAreas.includes('Dehradun Municipal Corporation') || officer.serviceAreas.includes(complaint.ward) || officer.serviceAreas.includes(complaint.tehsil))
+            .filter(officer => officer.serviceAreas.includes(complaint.ward))
             .filter(officer => officer.activeLoad < officer.capacity)
             .sort((a, b) => a.activeLoad - b.activeLoad || a.name.localeCompare(b.name));
     }

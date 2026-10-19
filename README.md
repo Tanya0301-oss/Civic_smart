@@ -35,16 +35,7 @@ The current version is a frontend demo with browser `localStorage` used as the s
 
 The complaint form includes Dehradun-specific jurisdiction fields.
 
-Tehsils / Sub-Districts:
-
-- Dehradun Sadar
-- Doiwala
-- Rishikesh
-- Vikasnagar
-- Chakrata
-- Kalsi
-- Tyuni
-- Mussoorie
+The current demo is scoped to Dehradun Municipal Corporation wards and stores `Dehradun Sadar` as the tehsil for those records. Other Dehradun district tehsils are not offered in the municipal complaint form.
 
 Municipal wards:
 
@@ -67,6 +58,18 @@ These fields help identify where the complaint belongs and which municipal juris
 | Authority Dashboard | `admin.html` | Municipal admin triage and monitoring |
 | Officer Portal | `officer.html` | Officer assignment workflow |
 | Login | `login.html` | Role-based demo login |
+
+## Role Login (Frontend Demo Only)
+
+Demo mode is enabled. Keep the identifier and password fields for the intended login interface, but they are optional and are not verified. Select a role and press Login to Dashboard to continue:
+
+- Citizen / User opens `my-complaints.html` as Aarav Mehra (`CIT-DN-001`).
+- Assigned Officer opens `officer.html` as Er. Rajesh Varma (`OFF-RD-104`).
+- Authority / Admin opens `admin.html` as Dehradun Authority (`AUTH-DN-001`).
+
+These stable demo identities keep citizen history and officer assignments connected across page navigation. Logout clears only the active session; shared complaints and workflow records remain in browser storage. The browser stores the session in `sessionStorage`; its page guards demonstrate role routing and are not production security. The Flask API currently does not authenticate users or enforce role permissions. Real authentication and server-side authorization remain future work.
+
+The location master uses the ward names published by [Nagar Nigam Dehradun](https://nndehradun.uk.gov.in/ward-details-parsiman/). Its address suggestions are demonstration locality labels. They do not verify a parcel, ward boundary, or field location. The project maps these wards to Dehradun Sadar as a demo convention; the published ward directory does not establish that tehsil overlay, so confirm it with the municipal authority before operational use.
 
 ## JavaScript Modules
 

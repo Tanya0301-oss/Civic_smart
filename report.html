@@ -208,17 +208,9 @@
                     <div class="form-group">
                         <label for="tehsil" class="form-label">Tehsil / Sub-District <span class="required">*</span></label>
                         <select id="tehsil" name="tehsil" class="form-select" required>
-                            <option value="" disabled selected>Select Dehradun tehsil</option>
-                            <option value="Dehradun Sadar">Dehradun Sadar</option>
-                            <option value="Doiwala">Doiwala</option>
-                            <option value="Rishikesh">Rishikesh</option>
-                            <option value="Vikasnagar">Vikasnagar</option>
-                            <option value="Chakrata">Chakrata</option>
-                            <option value="Kalsi">Kalsi</option>
-                            <option value="Tyuni">Tyuni</option>
-                            <option value="Mussoorie">Mussoorie</option>
+                            <option value="Dehradun Sadar" selected>Dehradun Sadar</option>
                         </select>
-                        <span class="form-hint">Helps identify the correct Dehradun sub-district jurisdiction.</span>
+                        <span class="form-hint">This demo is scoped to Dehradun Municipal Corporation wards in Dehradun Sadar.</span>
                     </div>
 
                     <div class="form-group">
@@ -326,7 +318,7 @@
                             <option value="Ward 99 - Nakrunda">Ward 99 - Nakrunda</option>
                             <option value="Ward 100 - Nathuawala">Ward 100 - Nathuawala</option>
                         </select>
-                        <span class="form-hint">Scrollable ward list used to identify municipal jurisdiction.</span>
+                        <span class="form-hint">Ward choices come from the shared Dehradun location master.</span>
                     </div>
                 </div>
 
@@ -352,12 +344,14 @@
                     <label for="location" class="form-label">Specific Location & Landmark <span class="required">*</span></label>
                     <div class="input-with-action">
                         <input type="text" id="location" name="location" class="form-input" 
-                               placeholder="e.g., Opposite Gate 3, Community Center, Sector 15" required>
+                               placeholder="e.g., Ballupur Chowk service lane, Dehradun" list="locationSuggestions" required>
+                        <datalist id="locationSuggestions"></datalist>
                         <button type="button" id="detectLocationBtn" class="input-action-btn">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
                             Detect
                         </button>
                     </div>
+                      <span class="form-hint">Choose an address suggestion or enter a Dehradun landmark that includes the selected ward name.</span>
                     <span class="form-hint">Geo-coordinates assist duplicate clustering and field routing.</span>
                 </div>
 
@@ -421,12 +415,12 @@
                     <div class="form-group">
                         <label for="citizenName" class="form-label">Your Name</label>
                         <input type="text" id="citizenName" name="citizenName" class="form-input" 
-                               placeholder="e.g., Tanya Sharma" value="Aarav Mehra">
+                               placeholder="e.g., Tanya Sharma">
                     </div>
                     <div class="form-group">
                         <label for="citizenPhone" class="form-label">Phone Number</label>
                         <input type="tel" id="citizenPhone" name="citizenPhone" class="form-input" 
-                               placeholder="+91 98765 43210" value="+91 98102 44921">
+                               placeholder="+91 98765 43210">
                         <span class="form-hint">Used strictly for SMS status notifications.</span>
                     </div>
                 </div>
@@ -520,6 +514,7 @@
 
     <!-- Scripts -->
     <script src="js/nav.js"></script>
+    <script src="js/dehradun-locations.js"></script>
     <script src="js/civic-data.js"></script>
     <script src="js/civic-api.js"></script>
     <script src="js/report.js"></script>
