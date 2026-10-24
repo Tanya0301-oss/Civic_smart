@@ -1,0 +1,166 @@
+/* ─── Buttons ─── */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    padding: 0.875rem 2rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-normal) var(--ease-out);
+    white-space: nowrap;
+}
+
+.btn--primary {
+    background-color: var(--burgundy);
+    color: var(--ivory);
+}
+
+.btn--primary:hover {
+    background-color: var(--dark-burgundy);
+}
+
+.btn--secondary {
+    background-color: transparent;
+    color: var(--burgundy);
+    border: 1.5px solid var(--burgundy);
+}
+
+.btn--secondary:hover {
+    background-color: var(--burgundy);
+    color: var(--ivory);
+}
+
+.btn--ghost {
+    background-color: transparent;
+    color: var(--charcoal);
+    padding: 0.875rem 1.25rem;
+}
+
+.btn--ghost:hover {
+    color: var(--burgundy);
+}
+
+.btn--light {
+    background-color: rgba(248, 244, 236, 0.15);
+    color: var(--ivory);
+    border: 1.5px solid rgba(248, 244, 236, 0.4);
+}
+
+.btn--light:hover {
+    background-color: rgba(248, 244, 236, 0.25);
+}
+
+.btn--sm {
+    font-size: var(--text-xs);
+    padding: 0.625rem 1.25rem;
+}
+
+.btn--lg {
+    font-size: var(--text-base);
+    padding: 1rem 2.5rem;
+}
+
+
+/* ─── Badges ─── */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.badge--critical {
+    background-color: rgba(155, 44, 44, 0.1);
+    color: var(--status-critical);
+}
+
+.badge--high {
+    background-color: rgba(179, 138, 82, 0.12);
+    color: var(--gold);
+}
+
+.badge--normal {
+    background-color: rgba(141, 129, 117, 0.12);
+    color: var(--taupe);
+}
+
+.badge--resolved {
+    background-color: rgba(74, 124, 89, 0.1);
+    color: var(--status-resolved);
+}
+
+.badge--progress {
+    background-color: rgba(43, 108, 176, 0.1);
+    color: var(--status-progress);
+}
+
+
+/* ─── Section Labels ─── */
+
+.section-label {
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--burgundy);
+    margin-bottom: var(--space-lg);
+}
+
+.section-label--light {
+    color: var(--gold);
+}
+
+
+/* ─── Cards ─── */
+
+.card {
+    background-color: var(--ivory);
+    border: var(--border-thin);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.card--flat {
+    border: none;
+    background-color: transparent;
+    padding: 0;
+}
+
+.card--flat:hover {
+    box-shadow: none;
+}
+
+
+/* ─── Divider ─── */
+
+.divider {
+    width: 100%;
+    height: 1px;
+    background-color: var(--beige);
+    border: none;
+    margin-block: var(--space-3xl);
+}
+
+.divider--short {
+    width: 60px;
+    height: 2px;
+    background-color: var(--burgundy);
+    margin-block: var(--space-xl);
+}
