@@ -1,0 +1,17 @@
+M0 static checks — 2026-10-24 (environment/API check updated 2026-10-29)
+Repository: Civic_smart-main (nested project root)
+Baseline commit: 85860e8
+Branch: phase3-integration
+
+Python syntax: PASS — backend/app.py and backend/setup_db.py parsed with Python 3.12.3
+HTML local references: PASS — 216 references scanned across 7 HTML pages; none missing
+C++ scheduler compilation: PASS — g++ -std=c++11; executable created in temporary directory
+Scheduler JSON smoke test 1: PASS — sample selected complaint id high, priority score 81
+Scheduler JSON smoke test 2: PASS — empty queue returned selected null, eligibleCount 0
+JavaScript syntax: NOT TESTED — Node.js unavailable on PATH
+Browser testing: PARTIALLY TESTED — screenshot observations documented; not independently reproduced
+PostgreSQL integration: BLOCKED / NOT TESTED — service and required driver unavailable; no target database was accessed
+Flask API health check: CONNECTION FAILED — http://localhost:5000/api/health; no response returned
+
+Prepared scripts/phase3/m0_baseline_check.py: ABSENT
+No database setup, migration, or live integration test was run.
