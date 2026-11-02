@@ -335,20 +335,52 @@ def get_complaint(cid):
 
 @app.route("/api/complaints", methods=["POST"])
 def create_complaint():
-    data = request.json or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON object is required"}), 400
+
     title = data.get("title")
     description = data.get("description")
     category = data.get("category")
     location = data.get("location")
-    tehsil = data.get("tehsil", "Dehradun Sadar")
     ward = data.get("ward")
+    tehsil = data.get("tehsil", "Dehradun Sadar")
     severity = data.get("severity", "Medium")
     citizen = data.get("citizen", "Anonymous Citizen")
     photo = data.get("photo")
 
-    if not all([title, description, category, location, ward]):
-        return jsonify({"error": "Missing mandatory fields"}), 400
+    required_fields = {
+        "title": title,
+        "description": description,
+        "category": category,
+        "location": location,
+        "ward": ward,
+    }
+    for field, value in required_fields.items():
+        if not isinstance(value, str) or not value.strip():
+            return jsonify({"error": f"Valid {field} is required"}), 400
+        required_fields[field] = value.strip()
 
+    title = required_fields["title"]
+    description = required_fields["description"]
+    category = required_fields["category"]
+    location = required_fields["location"]
+    ward = required_fields["ward"]
+
+    if not isinstance(category, str) or category not in {"Roads", "Water", "Waste", "Lighting", "Drainage", "Electricity", "Other"}:
+        return jsonify({"error": "Invalid category"}), 400
+    if not isinstance(severity, str) or severity not in {"Low", "Medium", "High", "Critical"}:
+        return jsonify({"error": "Invalid severity"}), 400
+    if not isinstance(tehsil, str) or not tehsil.strip():
+        return jsonify({"error": "Valid tehsil is required"}), 400
+    if not isinstance(citizen, str) or not citizen.strip():
+        return jsonify({"error": "Valid citizen is required"}), 400
+    if photo is not None and not isinstance(photo, str):
+        return jsonify({"error": "Photo must be a string"}), 400
+
+    tehsil = tehsil.strip()
+    citizen = citizen.strip()
+    photo = photo.strip() if photo is not None else None
     dept_map = {
         "Roads": "Road Infrastructure & Maintenance",
         "Water": "Municipal Water & Sewerage Board",
@@ -358,17 +390,19 @@ def create_complaint():
         "Electricity": "Electrical & Street Lighting Wing",
         "Other": "General Municipal Works"
     }
-    department = dept_map.get(category, "General Municipal Works")
+    department = dept_map[category]
     cluster_id = f"CLUS-{int(1000 + (abs(hash(title)) % 8999))}"
 
+    conn = None
+    cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) as count FROM complaints")
-        cnt_row = cur.fetchone()
-        cnt = cnt_row["count"] if isinstance(cnt_row, dict) else cnt_row[0]
-        complaint_id = data.get("id") or f"CS{1001 + cnt}"
+        cur.execute("SELECT nextval('public.complaint_id_seq') AS id")
+        id_row = cur.fetchone()
+        sequence_id = id_row["id"] if isinstance(id_row, dict) else id_row[0]
+        complaint_id = f"CS{sequence_id}"
 
         cur.execute(
             """INSERT INTO complaints (
@@ -393,49 +427,126 @@ def create_complaint():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify(map_complaint(inserted)), 201
     except Exception as e:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return jsonify({"error": str(e)}), 500
+    finally:
+        if cur is not None:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @app.route("/api/complaints/<cid>/status", methods=["PATCH", "PUT"])
 @app.route("/api/complaints/<cid>", methods=["PUT", "PATCH"])
 def update_status(cid):
     clean_id = cid.upper().replace("#", "").strip()
-    data = request.json or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON object is required"}), 400
+
     status = data.get("status")
+    if not isinstance(status, str) or not status.strip():
+        return jsonify({"error": "A non-empty status is required"}), 400
+    status = status.strip()
+
+    allowed_statuses = {
+        "Reported",
+        "Verified",
+        "Assigned",
+        "In Progress",
+        "Blocked",
+        "Completion Submitted",
+        "Resolved",
+        "Disputed",
+        "Rejected",
+    }
+    if status not in allowed_statuses:
+        return jsonify({"error": "Invalid complaint status"}), 400
+
+    transitions = {
+        "Reported": {"Verified", "Rejected"},
+        "Verified": {"Rejected"},
+        "Assigned": set(),
+        "In Progress": set(),
+        "Blocked": set(),
+        "Completion Submitted": {"Resolved", "Disputed"},
+        "Resolved": {"Disputed"},
+        "Disputed": set(),
+        "Rejected": set(),
+    }
     actor = data.get("actor", "Authority Console")
-    role = data.get("role", "ADMIN")
+    if not isinstance(actor, str) or not actor.strip():
+        actor = "Authority Console"
+    actor = actor.strip()
 
-    if not status and "status" not in data:
-        return jsonify({"error": "Status is required"}), 400
-
+    conn = None
+    cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT set_config('civic_smart.current_actor', %s, true)", (actor,))
-        cur.execute("SELECT set_config('civic_smart.current_role', %s, true)", (role,))
-        
-        # If full complaint object is provided in PUT
-        if status:
-            cur.execute(
-                "UPDATE complaints SET status = %s WHERE complaint_id = %s RETURNING *",
-                (status, clean_id)
-            )
-        else:
-            cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (clean_id,))
-            
+
+        cur.execute(
+            "SELECT * FROM complaints WHERE complaint_id = %s FOR UPDATE",
+            (clean_id,),
+        )
+        current = cur.fetchone()
+        if not current:
+            conn.rollback()
+            return jsonify({"error": "Complaint not found"}), 404
+
+        current_status = current["status"]
+        if status == current_status:
+            conn.commit()
+            return jsonify(map_complaint(current))
+
+        if status not in transitions.get(current_status, set()):
+            conn.rollback()
+            return jsonify({
+                "error": f"Transition from {current_status} to {status} is not allowed"
+            }), 409
+
+        cur.execute(
+            "SELECT set_config('civic_smart.current_actor', %s, true)",
+            (actor,),
+        )
+        # Audit attribution only; caller-supplied role is never trusted.
+        cur.execute("SELECT set_config('civic_smart.current_role', %s, true)", ("ADMIN",))
+        cur.execute(
+            "UPDATE complaints SET status = %s WHERE complaint_id = %s RETURNING *",
+            (status, clean_id),
+        )
         updated = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
-
-        if not updated:
-            return jsonify({"error": "Complaint not found"}), 404
         return jsonify(map_complaint(updated))
     except Exception as e:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return jsonify({"error": str(e)}), 500
+    finally:
+        if cur is not None:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @app.route("/api/officers", methods=["GET"])
 def get_officers():

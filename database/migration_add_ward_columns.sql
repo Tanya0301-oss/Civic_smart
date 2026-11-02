@@ -29,6 +29,7 @@ BEGIN
         -- Add 'tehsil' if it does not exist
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.columns 
+
             WHERE table_name = 'complaints' AND column_name = 'tehsil' AND table_schema = 'public'
         ) THEN
             ALTER TABLE complaints ADD COLUMN tehsil VARCHAR(100) DEFAULT 'Dehradun Sadar';

@@ -90,17 +90,41 @@ const CivicAPI = (() => {
      * Asynchronously mirror status update to PostgreSQL
      */
     async function mirrorUpdateStatus(id, status, actor) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints/${encodeURIComponent(id)}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status, actor })
-            });
-            console.log('[CivicAPI] Status update mirrored to PostgreSQL:', id, status);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror status update:', err.message);
+        if (!isConnected) {
+            return null;
         }
+
+        const response = await fetch(
+            `${API_BASE}/complaints/${encodeURIComponent(id)}/status`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    status,
+                    actor: actor || 'Authority Console'
+                })
+            }
+        );
+
+        const result = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            const message =
+                result?.error ||
+                `Status update rejected (HTTP ${response.status})`;
+
+            throw new Error(message);
+        }
+
+        console.log(
+            '[CivicAPI] Status update confirmed by PostgreSQL:',
+            id,
+            status
+        );
+
+        return result;
     }
 
     /**
@@ -173,9 +197,19 @@ const CivicAPI = (() => {
         };
 
         const origStatus = CivicData.updateComplaintStatus;
-        CivicData.updateComplaintStatus = function (id, status, actor) {
+        CivicData.updateComplaintStatus = async function (id, status, actor) {
+            // Server confirmation comes first when backend is connected.
+            await mirrorUpdateStatus(id, status, actor);
+
+            // Local state is changed only after server acceptance.
             const updated = origStatus.call(CivicData, id, status, actor);
-            mirrorUpdateStatus(id, status, actor);
+
+            if (!updated) {
+                throw new Error(
+                    'Complaint was not found in local application data'
+                );
+            }
+
             return updated;
         };
 

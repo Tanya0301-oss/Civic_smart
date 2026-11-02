@@ -35,6 +35,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activeComplaintId = null;
 
+    // Admin-accessible complaint status transitions.
+    // Assignment-managed transitions must use the assignment workflow.
+    const ADMIN_STATUS_TRANSITIONS = {
+        "Reported": ["Verified", "Rejected"],
+        "Verified": ["Rejected"],
+        "Assigned": [],
+        "In Progress": [],
+        "Blocked": [],
+        "Completion Submitted": ["Resolved", "Disputed"],
+        "Resolved": ["Disputed"],
+        "Disputed": [],
+        "Rejected": []
+    };
+
+    function populateAdminStatusOptions(currentStatus) {
+        if (!modalStatusSelect) return;
+
+        const allowedNextStatuses =
+            ADMIN_STATUS_TRANSITIONS[currentStatus] || [];
+
+        // Remove the static HTML options and construct safe options.
+        modalStatusSelect.replaceChildren();
+
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.textContent = allowedNextStatuses.length
+            ? `Current: ${currentStatus} — select next status`
+            : `Current: ${currentStatus} — no direct admin transition`;
+        modalStatusSelect.appendChild(placeholder);
+
+        allowedNextStatuses.forEach(status => {
+            const option = document.createElement("option");
+            option.value = status;
+            option.textContent = status;
+            modalStatusSelect.appendChild(option);
+        });
+
+        modalStatusSelect.value = "";
+        modalStatusSelect.disabled = allowedNextStatuses.length === 0;
+    }
+
     function complaints() {
         return CivicData.getComplaints().sort((a, b) => b.priorityScore - a.priorityScore);
     }
@@ -166,7 +209,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         container.innerHTML = byDepartment.map(({ officer, active }) => {
-            const percent = Math.min(100, Math.round((active / officer.capacity) * 100));
+            const skills = Array.isArray(officer.skills)
+                ? officer.skills
+                : [];
+
+            const serviceAreas = Array.isArray(officer.serviceAreas)
+                ? officer.serviceAreas
+                : [];
+
+            const capacity = Number(officer.capacity);
+            const percent =
+                Number.isFinite(capacity) && capacity > 0
+                    ? Math.min(100, Math.round((active / capacity) * 100))
+                    : 0;
             const color = percent >= 80 ? 'var(--status-critical)' : percent >= 50 ? 'var(--gold)' : 'var(--status-resolved)';
             return `
                 <div>
@@ -177,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="height: 10px; background: var(--beige); border-radius: 5px; overflow: hidden;">
                         <div style="width: ${percent}%; height: 100%; background: ${color};"></div>
                     </div>
-                    <div style="font-size: var(--text-xs); color: var(--taupe); margin-top: 4px;">Skills: ${officer.skills.join(', ')} | Areas: ${officer.serviceAreas.join(', ')}</div>
+                    <div style="font-size: var(--text-xs); color: var(--taupe); margin-top: 4px;">Skills: ${skills.length ? skills.join(', ') : 'Not specified'} | Areas: ${serviceAreas.length ? serviceAreas.join(', ') : 'Not specified'}</div>
                 </div>
             `;
         }).join('');
@@ -224,9 +279,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.status-modal-trigger').forEach(btn => {
             btn.onclick = () => {
                 activeComplaintId = btn.dataset.id;
-                if (modalRef) modalRef.textContent = `Modifying record #${activeComplaintId}`;
-                if (modalStatusSelect) modalStatusSelect.value = btn.dataset.status;
-                if (statusModal) statusModal.style.display = 'flex';
+
+                const currentStatus = btn.dataset.status || "Unknown";
+
+                if (modalRef) {
+                    modalRef.textContent =
+                        `Modifying record #${activeComplaintId}`;
+                }
+
+                populateAdminStatusOptions(currentStatus);
+
+                if (statusModal) {
+                    statusModal.style.display = 'flex';
+                }
             };
         });
 
@@ -309,12 +374,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (saveStatusBtn && statusModal) {
-        saveStatusBtn.addEventListener('click', () => {
-            if (activeComplaintId && modalStatusSelect) {
-                CivicData.updateComplaintStatus(activeComplaintId, modalStatusSelect.value);
-                refreshAll();
+        saveStatusBtn.addEventListener('click', async () => {
+            if (!activeComplaintId || !modalStatusSelect) {
+                return;
             }
-            statusModal.style.display = 'none';
+
+            const complaintId = activeComplaintId;
+            const requestedStatus = modalStatusSelect.value;
+
+            if (!requestedStatus) {
+                alert(
+                    "No valid status transition is available. " +
+                    "Assignment-managed changes must use the officer workflow."
+                );
+                return;
+            }
+
+            saveStatusBtn.disabled = true;
+
+            try {
+                await CivicData.updateComplaintStatus(
+                    complaintId,
+                    requestedStatus,
+                    'Authority Console'
+                );
+
+                refreshAll();
+
+                statusModal.style.display = 'none';
+            } catch (error) {
+                console.error(
+                    '[Admin] Status update failed:',
+                    error
+                );
+
+                alert(
+                    error.message ||
+                    'Unable to update complaint status. Please try again.'
+                );
+            } finally {
+                saveStatusBtn.disabled = false;
+            }
         });
     }
 
