@@ -335,7 +335,10 @@ def get_complaint(cid):
 
 @app.route("/api/complaints", methods=["POST"])
 def create_complaint():
-    data = request.json or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON object is required"}), 400
+
     title = data.get("title")
     description = data.get("description")
     category = data.get("category")
@@ -346,8 +349,33 @@ def create_complaint():
     citizen = data.get("citizen", "Anonymous Citizen")
     photo = data.get("photo")
 
-    if not all([title, description, category, location, ward]):
+    required_fields = {
+        "title": title,
+        "description": description,
+        "category": category,
+        "location": location,
+        "ward": ward,
+    }
+    if any(not isinstance(value, str) or not value.strip() for value in required_fields.values()):
         return jsonify({"error": "Missing mandatory fields"}), 400
+
+    allowed_categories = {
+        "Roads", "Water", "Waste", "Lighting", "Drainage", "Electricity", "Other"
+    }
+    allowed_severities = {"Low", "Medium", "High", "Critical"}
+    if category not in allowed_categories:
+        return jsonify({"error": "Invalid complaint category"}), 400
+    if not isinstance(severity, str) or severity not in allowed_severities:
+        return jsonify({"error": "Invalid complaint severity"}), 400
+    if not isinstance(citizen, str) or not citizen.strip():
+        citizen = "Anonymous Citizen"
+
+    title = title.strip()
+    description = description.strip()
+    location = location.strip()
+    tehsil = tehsil.strip() if isinstance(tehsil, str) and tehsil.strip() else "Dehradun Sadar"
+    ward = ward.strip()
+    citizen = citizen.strip()
 
     dept_map = {
         "Roads": "Road Infrastructure & Maintenance",
@@ -356,48 +384,75 @@ def create_complaint():
         "Lighting": "Electrical & Street Lighting Wing",
         "Drainage": "Stormwater Drainage Division",
         "Electricity": "Electrical & Street Lighting Wing",
-        "Other": "General Municipal Works"
+        "Other": "General Municipal Works",
     }
-    department = dept_map.get(category, "General Municipal Works")
+    department = dept_map[category]
     cluster_id = f"CLUS-{int(1000 + (abs(hash(title)) % 8999))}"
+    conn = None
+    cur = None
 
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) as count FROM complaints")
-        cnt_row = cur.fetchone()
-        cnt = cnt_row["count"] if isinstance(cnt_row, dict) else cnt_row[0]
-        complaint_id = data.get("id") or f"CS{1001 + cnt}"
+        cur.execute("SELECT nextval('public.complaint_id_seq')")
+        sequence_row = cur.fetchone()
+        complaint_number = (
+            sequence_row["nextval"]
+            if isinstance(sequence_row, dict)
+            else sequence_row[0]
+        )
+        complaint_id = f"CS{complaint_number}"
 
         cur.execute(
-            """INSERT INTO complaints (
+            """
+            INSERT INTO complaints (
                 complaint_id, citizen_name, title, description, category, department,
                 location, tehsil, ward, severity, photo_url, cluster_id, status
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reported')
-            RETURNING *""",
-            (complaint_id, citizen, title, description, category, department, location, tehsil, ward, severity, photo, cluster_id)
+            RETURNING *
+            """,
+            (
+                complaint_id, citizen, title, description, category, department,
+                location, tehsil, ward, severity, photo, cluster_id,
+            ),
         )
         inserted = cur.fetchone()
 
         cur.execute(
-            """INSERT INTO status_history (complaint_id, actor, role, action, from_status, to_status, message)
-               VALUES (%s, %s, 'CITIZEN', 'Complaint Registered', '', 'Reported', 'Citizen report stored in PostgreSQL.')""",
-            (complaint_id, citizen)
+            """
+            INSERT INTO status_history (
+                complaint_id, actor, role, action, from_status, to_status, message
+            ) VALUES (
+                %s, %s, 'CITIZEN', 'Complaint Registered',
+                '', 'Reported', 'Citizen report stored in PostgreSQL.'
+            )
+            """,
+            (complaint_id, citizen),
         )
-
         cur.execute(
-            """INSERT INTO notifications (target_role, complaint_id, message)
-               VALUES ('ADMIN', %s, %s)""",
-            (complaint_id, f"New {category} complaint #{complaint_id} submitted in {ward}.")
+            """
+            INSERT INTO notifications (target_role, complaint_id, message)
+            VALUES ('ADMIN', %s, %s)
+            """,
+            (
+                complaint_id,
+                f"New {category} complaint #{complaint_id} submitted in {ward}.",
+            ),
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify(map_complaint(inserted)), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception("Complaint creation failed")
+        return jsonify({"error": "Complaint creation failed"}), 500
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route("/api/complaints/<cid>/status", methods=["PATCH", "PUT"])
 @app.route("/api/complaints/<cid>", methods=["PUT", "PATCH"])
@@ -495,23 +550,300 @@ def get_assignments():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/complaints/<cid>/allocate", methods=["POST"])
-def allocate_officer(cid):
-    clean_id = cid.upper().replace("#", "").strip()
-    data = request.json or {}
-    actor = data.get("actor", "Authority Console")
+@app.route("/api/assignments/<assignment_id>/state", methods=["PATCH"])
+def update_assignment_state(assignment_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON object is required"}), 400
+
+    requested_state = data.get("state")
+    if not isinstance(requested_state, str):
+        return jsonify({"error": "Assignment state is required"}), 400
+    new_state = requested_state.strip().upper()
+    valid_states = {
+        "PENDING_ACCEPTANCE",
+        "ACCEPTED",
+        "IN_PROGRESS",
+        "BLOCKED",
+        "COMPLETION_SUBMITTED",
+        "REJECTED",
+        "COMPLETED",
+    }
+    if not new_state:
+        return jsonify({"error": "Assignment state is required"}), 400
+    if new_state not in valid_states:
+        return jsonify({"error": "Unknown assignment state"}), 400
+
+    transitions = {
+        "PENDING_ACCEPTANCE": {"ACCEPTED", "REJECTED"},
+        "ACCEPTED": {"IN_PROGRESS"},
+        "BLOCKED": {"IN_PROGRESS"},
+        "IN_PROGRESS": {"BLOCKED", "COMPLETION_SUBMITTED"},
+    }
+
+    detail_fields = {
+        "REJECTED": ("rejectionReason", "rejection_reason", "A rejection reason is required"),
+        "BLOCKED": ("blocker", "blocker", "A blocker description is required"),
+        "COMPLETION_SUBMITTED": (
+            "completionNote",
+            "completion_note",
+            "A completion note is required",
+        ),
+    }
+    detail = None
+    if new_state in detail_fields:
+        camel_key, snake_key, error_message = detail_fields[new_state]
+        detail = data.get(camel_key, data.get(snake_key))
+        if not isinstance(detail, str) or not detail.strip():
+            return jsonify({"error": error_message}), 400
+        detail = detail.strip()
+
+    assignment_id = assignment_id.strip()
+    actor = "M1.8-C Assignment Lifecycle (development)"
+    actor_role = "SYSTEM"
+    conn = None
+    cur = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("CALL sp_allocate_officer(%s, %s)", (clean_id, actor))
+
+        # Lock the assignment and its complaint in a consistent order before validation.
+        cur.execute(
+            """
+            SELECT assignment_id, complaint_id, officer_id, state
+            FROM assignments
+            WHERE assignment_id = %s
+            FOR UPDATE
+            """,
+            (assignment_id,),
+        )
+        assignment = cur.fetchone()
+        if not assignment:
+            conn.rollback()
+            return jsonify({"error": "Assignment not found"}), 404
+
+        cur.execute(
+            """
+            SELECT complaint_id, status, assigned_officer_id
+            FROM complaints
+            WHERE complaint_id = %s
+            FOR UPDATE
+            """,
+            (assignment["complaint_id"],),
+        )
+        complaint = cur.fetchone()
+        if not complaint:
+            conn.rollback()
+            return jsonify({"error": "Complaint not found"}), 404
+
+        previous_state = assignment["state"]
+        allowed_states = transitions.get(previous_state, set())
+        if new_state not in allowed_states:
+            conn.rollback()
+            return jsonify({
+                "error": "Invalid assignment state transition",
+                "currentState": previous_state,
+                "requestedState": new_state,
+                "allowedStates": sorted(allowed_states),
+            }), 409
+
+        # Values are fixed by the endpoint; client-supplied actor/role are never trusted.
+        cur.execute(
+            "SELECT set_config('civic_smart.current_actor', %s, true)",
+            (actor,),
+        )
+        cur.execute(
+            "SELECT set_config('civic_smart.current_role', %s, true)",
+            (actor_role,),
+        )
+
+        update_parts = ["state = %s"]
+        update_values = [new_state]
+        if new_state == "REJECTED":
+            update_parts.append("rejection_reason = %s")
+            update_values.append(detail)
+        elif new_state == "BLOCKED":
+            update_parts.append("blocker = %s")
+            update_values.append(detail)
+        elif new_state == "COMPLETION_SUBMITTED":
+            update_parts.append("completion_note = %s")
+            update_values.append(detail)
+        update_values.append(assignment_id)
+
+        cur.execute(
+            f"UPDATE assignments SET {', '.join(update_parts)} "
+            "WHERE assignment_id = %s "
+            "RETURNING assignment_id, complaint_id, officer_id, state, "
+            "rejection_reason, blocker, completion_note, updated_at",
+            tuple(update_values),
+        )
+        updated_assignment = cur.fetchone()
+
+        cur.execute(
+            """
+            INSERT INTO assignment_history (
+                assignment_id, complaint_id, officer_id, previous_state,
+                new_state, actor, actor_role, detail
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                assignment["assignment_id"],
+                assignment["complaint_id"],
+                assignment["officer_id"],
+                previous_state,
+                new_state,
+                actor,
+                actor_role,
+                detail,
+            ),
+        )
+
+        complaint_status = {
+            "IN_PROGRESS": "In Progress",
+            "BLOCKED": "Blocked",
+            "COMPLETION_SUBMITTED": "Completion Submitted",
+            "REJECTED": "Verified",
+        }.get(new_state)
+        if complaint_status:
+            if new_state == "REJECTED":
+                cur.execute(
+                    """
+                    UPDATE complaints
+                    SET status = %s, assigned_officer_id = NULL
+                    WHERE complaint_id = %s
+                    RETURNING status
+                    """,
+                    (complaint_status, assignment["complaint_id"]),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE complaints
+                    SET status = %s
+                    WHERE complaint_id = %s
+                    RETURNING status
+                    """,
+                    (complaint_status, assignment["complaint_id"]),
+                )
+            updated_complaint = cur.fetchone()
+            complaint_status = updated_complaint["status"]
+        else:
+            complaint_status = complaint["status"]
+
+        state_label = new_state.replace("_", " ").lower()
+        notification_detail = f" Detail: {detail}" if detail else ""
+        cur.execute(
+            """
+            INSERT INTO notifications (target_role, complaint_id, message)
+            VALUES (%s, %s, %s)
+            """,
+            (
+                "ADMIN",
+                assignment["complaint_id"],
+                f"Assignment {assignment_id} changed to {state_label}.{notification_detail}",
+            ),
+        )
+
         conn.commit()
-        cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (clean_id,))
-        updated = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"ok": True, "complaint": map_complaint(updated)})
+        return jsonify({
+            "ok": True,
+            "assignment": {
+                "id": updated_assignment["assignment_id"],
+                "complaintId": updated_assignment["complaint_id"],
+                "officerId": updated_assignment["officer_id"],
+                "state": updated_assignment["state"],
+                "rejectionReason": updated_assignment["rejection_reason"],
+                "blocker": updated_assignment["blocker"],
+                "completionNote": updated_assignment["completion_note"],
+            },
+            "complaintStatus": complaint_status,
+        })
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+@app.route("/api/complaints/<cid>/allocate", methods=["POST"])
+def allocate_officer(cid):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON object is required"}), 400
+
+    officer_id = data.get("officerId", data.get("officer_id"))
+    if not isinstance(officer_id, str) or not officer_id.strip():
+        return jsonify({"error": "A valid officerId is required"}), 400
+
+    clean_id = cid.upper().replace("#", "").strip()
+    officer_id = officer_id.strip()
+    actor = "M1.8-D Development Ward Superior"
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "CALL public.sp_allocate_officer(%s, %s, %s)",
+            (clean_id, officer_id, actor),
+        )
+        cur.execute(
+            """
+            SELECT
+                a.assignment_id,
+                a.complaint_id,
+                a.officer_id,
+                a.state,
+                a.deadline,
+                c.status AS complaint_status
+            FROM public.assignments a
+            JOIN public.complaints c ON c.complaint_id = a.complaint_id
+            WHERE a.complaint_id = %s
+              AND a.officer_id = %s
+              AND a.state = 'PENDING_ACCEPTANCE'
+            ORDER BY a.created_at DESC
+            LIMIT 1
+            """,
+            (clean_id, officer_id),
+        )
+        assignment = cur.fetchone()
+        if not assignment:
+            raise RuntimeError("Allocation procedure returned without creating an assignment")
+
+        conn.commit()
+        deadline = assignment["deadline"]
+        return jsonify({
+            "ok": True,
+            "assignment": {
+                "id": assignment["assignment_id"],
+                "complaintId": assignment["complaint_id"],
+                "officerId": assignment["officer_id"],
+                "state": assignment["state"],
+                "deadline": deadline.isoformat() if hasattr(deadline, "isoformat") else deadline,
+            },
+            "complaintStatus": assignment["complaint_status"],
+        }), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        sqlstate = getattr(e, "sqlstate", None) or getattr(e, "pgcode", None)
+        if sqlstate == "P0002":
+            return jsonify({"ok": False, "error": str(e).splitlines()[0]}), 404
+        if sqlstate in {"P0001", "23505"}:
+            return jsonify({"ok": False, "error": str(e).splitlines()[0]}), 409
+        app.logger.exception("Officer allocation failed")
+        return jsonify({"ok": False, "error": "Officer allocation failed"}), 500
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route("/api/scheduler/aging", methods=["POST"])
 def simulate_aging():
@@ -607,7 +939,79 @@ def run_scheduler():
                 "selected": selected
             }), 409
 
-        cur.execute("CALL sp_allocate_officer(%s, %s)", (selected_id, actor))
+        cur.execute(
+            """SELECT
+                   a.officer_id,
+                   a.capacity,
+                   COUNT(asn.assignment_id) AS active_count
+               FROM public.authorities a
+               LEFT JOIN public.assignments asn
+                   ON asn.officer_id = a.officer_id
+                  AND asn.state IN (
+                      'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS',
+                      'BLOCKED', 'COMPLETION_SUBMITTED'
+                  )
+               WHERE a.availability = 'Available'
+                 AND (a.department = %s OR %s = ANY(a.skills))
+                 AND (a.ward = %s OR %s = ANY(a.service_areas))
+               GROUP BY a.officer_id, a.capacity
+               HAVING COUNT(asn.assignment_id) < a.capacity
+               ORDER BY active_count ASC, a.officer_id ASC
+               LIMIT 1""",
+            (
+                still_eligible["department"],
+                still_eligible["category"],
+                still_eligible["ward"],
+                still_eligible["ward"],
+            ),
+        )
+        officer = cur.fetchone()
+        if not officer:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "reason": "NO_ELIGIBLE_OFFICER",
+                "message": (
+                    f"Scheduler selected {selected_id}, "
+                    "but no eligible officer has available capacity."
+                ),
+                "selected": selected
+            }), 409
+
+        selected_officer_id = officer["officer_id"]
+        app.logger.warning(
+            "SCHEDULER DEBUG: database=%r complaint_id=%r officer_id=%r officer_type=%s",
+            PGDATABASE,
+            selected_id,
+            selected_officer_id,
+            type(selected_officer_id).__name__,
+        )
+        cur.execute(
+            """SELECT
+                   current_database() AS database_name,
+                   current_user AS database_user,
+                   officer_id,
+                   length(officer_id) AS officer_id_length
+               FROM public.authorities
+               WHERE officer_id = %s""",
+            (selected_officer_id,),
+        )
+        officer_check = cur.fetchone()
+        app.logger.warning(
+            "SCHEDULER DEBUG: same_connection_officer_check=%r",
+            officer_check,
+        )
+        if not officer_check:
+            raise RuntimeError(
+                f"Scheduler selected officer ID {selected_officer_id!r}, "
+                "but the same database connection cannot find it."
+            )
+        cur.execute(
+            "CALL public.sp_allocate_officer(%s, %s, %s)",
+            (selected_id, selected_officer_id, "M1.8-D C++ Scheduler"),
+        )
         cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (selected_id,))
         updated = cur.fetchone()
         if not updated or not updated.get("assigned_officer_id"):
@@ -616,22 +1020,9 @@ def run_scheduler():
             conn.close()
             return jsonify({
                 "ok": False,
-                "reason": "NO_ELIGIBLE_OFFICER",
-                "message": f"Scheduler selected {selected_id}, but no eligible officer was available.",
+                "reason": "ALLOCATION_NOT_CONFIRMED",
                 "selected": selected
             }), 409
-
-        cur.execute(
-            """INSERT INTO status_history (complaint_id, actor, role, action, from_status, to_status, message)
-               VALUES (%s, %s, 'SYSTEM', 'C++ Scheduler Decision', %s, %s, %s)""",
-            (
-                selected_id,
-                "OS Scheduler",
-                still_eligible["status"],
-                updated["status"],
-                selected.get("reason", "Complaint selected by C++ priority scheduler.")
-            )
-        )
         conn.commit()
 
         cur.execute("SELECT * FROM assignments WHERE complaint_id = %s ORDER BY created_at DESC LIMIT 1", (selected_id,))
