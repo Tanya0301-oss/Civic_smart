@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const session = window.CivicAuth && CivicAuth.requireRole(['CITIZEN']);
+document.addEventListener('DOMContentLoaded', async () => {
+    const session = window.CivicAuth && await CivicAuth.requireRole(['CITIZEN']);
     if (!session) return;
     const container = document.getElementById('trackingContainer');
     const searchForm = document.getElementById('trackSearchForm');

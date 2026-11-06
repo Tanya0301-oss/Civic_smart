@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const session = window.CivicAuth && CivicAuth.requireRole(['CITIZEN']);
+document.addEventListener('DOMContentLoaded', async () => {
+    const session = window.CivicAuth && await CivicAuth.requireRole(['CITIZEN']);
     if (!session) return;
     const listContainer = document.getElementById('complaintsList');
     const searchInput = document.getElementById('complaintSearch');

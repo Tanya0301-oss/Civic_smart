@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const session = window.CivicAuth && CivicAuth.requireRole(['OFFICER']);
+document.addEventListener('DOMContentLoaded', async () => {
+    const session = window.CivicAuth && await CivicAuth.requireRole(['OFFICER']);
     if (!session) return;
     const officerSelect = document.getElementById('officerSelect');
     const officerName = document.getElementById('officerName');

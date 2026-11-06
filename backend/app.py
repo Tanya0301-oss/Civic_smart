@@ -7,9 +7,13 @@ Works with standard Python installations and embedded PostgreSQL/pgAdmin Python.
 import os
 import sys
 import json
+import secrets
+import hmac
 import subprocess
-from datetime import datetime, timezone
-from flask import Flask, request, jsonify, make_response
+from datetime import datetime, timezone, timedelta
+from functools import wraps
+from flask import Flask, request, jsonify, session, g
+import bcrypt
 
 # Auto-add PostgreSQL bin directory to Windows PATH so libpq DLLs are found
 if sys.platform == "win32":
@@ -23,28 +27,11 @@ if sys.platform == "win32":
                 except Exception:
                     pass
 
-# Load .env file with built-in parser fallback if python-dotenv is not installed
+# Load .env from the backend directory regardless of the process working directory.
 def load_env_file():
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        return
-    except ImportError:
-        pass
-
-    # Fallback parser
-    for env_path in [".env", "../.env", os.path.join(os.path.dirname(__file__), "..", ".env"), os.path.join(os.path.dirname(__file__), ".env")]:
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        k = k.strip()
-                        v = v.strip().strip("'\"")
-                        if k and k not in os.environ:
-                            os.environ[k] = v
-            break
+    from dotenv import load_dotenv
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    load_dotenv(dotenv_path=env_path, override=False)
 
 load_env_file()
 
@@ -57,33 +44,39 @@ app = Flask(__name__, static_folder=ROOT_DIR, static_url_path="")
 def index():
     return app.send_static_file("index.html")
 
-# Built-in CORS support
-try:
-    from flask_cors import CORS
-    CORS(app)
-except ImportError:
-    @app.after_request
-    def add_cors_headers(response):
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
+PORT = int(os.getenv("PORT", "5000"))
+PGHOST = os.getenv("PGHOST")
+PGPORT = int(os.getenv("PGPORT", "5432"))
+PGDATABASE = os.getenv("PGDATABASE")
+PGUSER = os.getenv("PGUSER")
+PGPASSWORD = os.getenv("PGPASSWORD")
+SECRET_KEY = os.getenv("SECRET_KEY")
+required_settings = {
+    "PGHOST": PGHOST,
+    "PGDATABASE": PGDATABASE,
+    "PGUSER": PGUSER,
+    "PGPASSWORD": PGPASSWORD,
+    "SECRET_KEY": SECRET_KEY,
+}
+missing_settings = [key for key, value in required_settings.items() if not value or not value.strip()]
+if missing_settings:
+    raise RuntimeError("Missing required environment settings: " + ", ".join(missing_settings))
+if PGDATABASE != "civic_smart_m1_8c_test":
+    raise RuntimeError(
+        "Phase III authentication testing must use "
+        "civic_smart_m1_8c_test. Refusing to start."
+    )
 
-    @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
-    @app.route("/<path:path>", methods=["OPTIONS"])
-    def preflight_handler(path):
-        resp = make_response()
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return resp
-
-PORT = int(os.getenv("PORT", 5000))
-PGHOST = os.getenv("PGHOST", "localhost")
-PGPORT = int(os.getenv("PGPORT", 5432))
-PGDATABASE = os.getenv("PGDATABASE", "civic_smartdb")
-PGUSER = os.getenv("PGUSER", "postgres")
-PGPASSWORD = os.getenv("PGPASSWORD", "postgres")
+app.config.update(
+    SECRET_KEY=SECRET_KEY,
+    SESSION_COOKIE_NAME="civic_smart_session",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=False,  # Local HTTP testing only; set True for HTTPS deployment.
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_REFRESH_EACH_REQUEST=True,
+    MAX_CONTENT_LENGTH=2 * 1024 * 1024,
+)
 
 # Driver selector: psycopg (v3) or psycopg2
 HAS_PSYCOPG3 = False
@@ -122,6 +115,206 @@ def get_db_connection():
         )
     else:
         raise RuntimeError("No PostgreSQL driver found. Please install psycopg or psycopg2-binary.")
+
+
+def get_authenticated_user():
+    user_id = session.get("user_id")
+    session_version = session.get("session_version")
+    if not user_id or session_version is None:
+        return None
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT user_id, role, display_name, citizen_id, officer_id,
+                   is_active, session_version
+            FROM app_users
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        user = cur.fetchone()
+        if not user:
+            session.clear()
+            return None
+        if not user["is_active"] or str(user["session_version"]) != str(session_version):
+            session.clear()
+            return None
+        return {
+            "userId": user["user_id"],
+            "role": user["role"],
+            "displayName": user["display_name"],
+            "citizenId": user["citizen_id"],
+            "officerId": user["officer_id"],
+        }
+    except Exception:
+        session.clear()
+        app.logger.exception("Failed to verify authenticated session")
+        return None
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+def require_roles(*roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            user = get_authenticated_user()
+            if not user:
+                return jsonify({"error": "Authentication required."}), 401
+            if roles and user["role"] not in roles:
+                return jsonify({"error": "Forbidden."}), 403
+            g.current_user = user
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def require_csrf(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        origin = request.headers.get("Origin", "")
+        expected_origin = request.host_url.rstrip("/")
+        if not origin or origin.rstrip("/") != expected_origin:
+            return jsonify({"error": "Invalid request origin."}), 403
+        if not valid_csrf_token():
+            return jsonify({"error": "Invalid or missing CSRF token."}), 403
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def complaint_scope_sql(user, alias="c"):
+    role = user["role"]
+    if role == "ADMIN":
+        return "TRUE", []
+    if role == "CITIZEN" and user.get("citizenId"):
+        return f"{alias}.citizen_id = %s", [user["citizenId"]]
+    if role == "OFFICER" and user.get("officerId"):
+        return f"{alias}.assigned_officer_id = %s", [user["officerId"]]
+    # Ward Superior access remains unavailable until verified ward scope exists.
+    return "FALSE", []
+
+
+def can_access_complaint(cur, complaint_id, user):
+    scope, params = complaint_scope_sql(user)
+    cur.execute(
+        f"""
+        SELECT 1
+        FROM complaints c
+        WHERE c.complaint_id = %s
+          AND ({scope})
+        """,
+        (complaint_id, *params),
+    )
+    return cur.fetchone() is not None
+
+
+def valid_csrf_token():
+    supplied = request.headers.get("X-CSRF-Token", "")
+    expected = session.get("csrf_token", "")
+    origin = request.headers.get("Origin", "")
+    if not origin or origin.rstrip("/") != request.host_url.rstrip("/"):
+        return False
+    return bool(
+        supplied
+        and expected
+        and hmac.compare_digest(supplied, expected)
+    )
+
+
+@app.route("/api/auth/csrf", methods=["GET"])
+def auth_csrf():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return jsonify({"csrfToken": token})
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    if not valid_csrf_token():
+        return jsonify({"error": "Invalid CSRF token."}), 403
+    payload = request.get_json(silent=True) or {}
+    identifier = payload.get("identifier")
+    password = payload.get("password")
+    if not isinstance(identifier, str) or not isinstance(password, str) or not identifier.strip() or not password:
+        return jsonify({"error": "Invalid identifier or password."}), 401
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT u.user_id, u.role, u.display_name, u.citizen_id, u.officer_id,
+                   u.password_hash, u.is_active, u.session_version
+            FROM app_users AS u
+            JOIN app_user_identifiers AS i ON i.user_id = u.user_id
+            WHERE i.identifier_normalized = LOWER(BTRIM(%s))
+            LIMIT 1
+            """,
+            (identifier,),
+        )
+        account = cur.fetchone()
+        password_ok = False
+        if account and account["is_active"]:
+            try:
+                encoded_hash = account["password_hash"].encode("utf-8")
+                password_ok = bcrypt.checkpw(password.encode("utf-8"), encoded_hash)
+            except (ValueError, TypeError, AttributeError):
+                password_ok = False
+        if not password_ok:
+            return jsonify({"error": "Invalid identifier or password."}), 401
+
+        session.clear()
+        session.permanent = True
+        session["user_id"] = account["user_id"]
+        session["session_version"] = account["session_version"]
+        session["csrf_token"] = secrets.token_urlsafe(32)
+        user = {
+            "userId": account["user_id"],
+            "role": account["role"],
+            "displayName": account["display_name"],
+            "citizenId": account["citizen_id"],
+            "officerId": account["officer_id"],
+        }
+        return jsonify({"user": user, "csrfToken": session["csrf_token"]})
+    except Exception:
+        app.logger.exception("Authentication request failed")
+        return jsonify({"error": "Authentication is temporarily unavailable."}), 503
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Authentication required."}), 401
+    return jsonify({"user": user})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Authentication required."}), 401
+    if not valid_csrf_token():
+        return jsonify({"error": "Invalid CSRF token."}), 403
+    session.clear()
+    return jsonify({"ok": True})
 
 def map_complaint(row):
     if not row:
@@ -221,34 +414,33 @@ def run_cpp_scheduler(eligible_rows):
 
 @app.route("/api/health", methods=["GET"])
 def health():
+    conn = None
+    cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT current_database() as db, version() as ver")
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
+        cur.execute("SELECT 1")
+        cur.fetchone()
         return jsonify({
-            "service": "Civic Smart Python API Backend",
+            "service": "Civic Smart API",
             "status": "healthy",
-            "database": {
-                "connected": True,
-                "database": row["db"],
-                "version": row["ver"]
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            "service": "Civic Smart Python API Backend",
-            "status": "database_disconnected",
-            "database": {
-                "connected": False,
-                "error": str(e),
-                "hint": "Check PGPASSWORD in backend/.env or ensure civic_smartdb exists."
-            }
+            "databaseConnected": True,
         }), 200
+    except Exception:
+        app.logger.exception("Health check failed")
+        return jsonify({
+            "service": "Civic Smart API",
+            "status": "unavailable",
+            "databaseConnected": False,
+        }), 503
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 @app.route("/api/complaints", methods=["GET"])
+@require_roles("CITIZEN", "OFFICER", "ADMIN")
 def get_complaints():
     status = request.args.get("status")
     category = request.args.get("category")
@@ -257,6 +449,9 @@ def get_complaints():
 
     query = "SELECT * FROM complaints WHERE 1=1"
     params = []
+    scope, scope_params = complaint_scope_sql(g.current_user)
+    query += f" AND ({scope})"
+    params.extend(scope_params)
 
     if status:
         query += " AND status = %s"
@@ -291,11 +486,16 @@ def get_complaints():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/complaints/<cid>", methods=["GET"])
+@require_roles("CITIZEN", "OFFICER", "ADMIN")
 def get_complaint(cid):
     clean_id = cid.upper().replace("#", "").strip()
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        if not can_access_complaint(cur, clean_id, g.current_user):
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Complaint not found or access denied."}), 404
         cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (clean_id,))
         complaint_row = cur.fetchone()
         if not complaint_row:
@@ -334,6 +534,8 @@ def get_complaint(cid):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/complaints", methods=["POST"])
+@require_roles("CITIZEN")
+@require_csrf
 def create_complaint():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -346,7 +548,10 @@ def create_complaint():
     tehsil = data.get("tehsil", "Dehradun Sadar")
     ward = data.get("ward")
     severity = data.get("severity", "Medium")
-    citizen = data.get("citizen", "Anonymous Citizen")
+    citizen = g.current_user["displayName"]
+    citizen_id = g.current_user["citizenId"]
+    if not citizen_id:
+        return jsonify({"error": "Citizen account is not linked correctly."}), 403
     photo = data.get("photo")
 
     required_fields = {
@@ -367,15 +572,11 @@ def create_complaint():
         return jsonify({"error": "Invalid complaint category"}), 400
     if not isinstance(severity, str) or severity not in allowed_severities:
         return jsonify({"error": "Invalid complaint severity"}), 400
-    if not isinstance(citizen, str) or not citizen.strip():
-        citizen = "Anonymous Citizen"
-
     title = title.strip()
     description = description.strip()
     location = location.strip()
     tehsil = tehsil.strip() if isinstance(tehsil, str) and tehsil.strip() else "Dehradun Sadar"
     ward = ward.strip()
-    citizen = citizen.strip()
 
     dept_map = {
         "Roads": "Road Infrastructure & Maintenance",
@@ -407,14 +608,16 @@ def create_complaint():
         cur.execute(
             """
             INSERT INTO complaints (
-                complaint_id, citizen_name, title, description, category, department,
-                location, tehsil, ward, severity, photo_url, cluster_id, status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reported')
+                complaint_id, citizen_id, citizen_name, title, description,
+                category, department, location, tehsil, ward, severity,
+                photo_url, cluster_id, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reported')
             RETURNING *
             """,
             (
-                complaint_id, citizen, title, description, category, department,
-                location, tehsil, ward, severity, photo, cluster_id,
+                complaint_id, citizen_id, citizen, title, description,
+                category, department, location, tehsil, ward, severity,
+                photo, cluster_id,
             ),
         )
         inserted = cur.fetchone()
@@ -456,12 +659,14 @@ def create_complaint():
 
 @app.route("/api/complaints/<cid>/status", methods=["PATCH", "PUT"])
 @app.route("/api/complaints/<cid>", methods=["PUT", "PATCH"])
+@require_roles("ADMIN")
+@require_csrf
 def update_status(cid):
     clean_id = cid.upper().replace("#", "").strip()
     data = request.json or {}
     status = data.get("status")
-    actor = data.get("actor", "Authority Console")
-    role = data.get("role", "ADMIN")
+    actor = g.current_user["displayName"]
+    role = g.current_user["role"]
 
     if not status and "status" not in data:
         return jsonify({"error": "Status is required"}), 400
@@ -493,6 +698,7 @@ def update_status(cid):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/officers", methods=["GET"])
+@require_roles("ADMIN")
 def get_officers():
     try:
         conn = get_db_connection()
@@ -516,18 +722,31 @@ def get_officers():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/assignments", methods=["GET"])
+@require_roles("OFFICER", "CITIZEN", "ADMIN")
 def get_assignments():
     officer_id = request.args.get("officerId")
     complaint_id = request.args.get("complaintId")
-    query = "SELECT * FROM assignments WHERE 1=1"
+    query = """
+        SELECT a.*
+        FROM assignments a
+        JOIN complaints c ON c.complaint_id = a.complaint_id
+        WHERE 1=1
+    """
     params = []
+    user = g.current_user
+    if user["role"] == "OFFICER":
+        query += " AND a.officer_id = %s"
+        params.append(user["officerId"])
+    elif user["role"] == "CITIZEN":
+        query += " AND c.citizen_id = %s"
+        params.append(user["citizenId"])
     if officer_id:
-        query += " AND officer_id = %s"
+        query += " AND a.officer_id = %s"
         params.append(officer_id)
     if complaint_id:
-        query += " AND complaint_id = %s"
+        query += " AND a.complaint_id = %s"
         params.append(complaint_id)
-    query += " ORDER BY created_at DESC"
+    query += " ORDER BY a.created_at DESC"
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -551,6 +770,8 @@ def get_assignments():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/assignments/<assignment_id>/state", methods=["PATCH"])
+@require_roles("OFFICER")
+@require_csrf
 def update_assignment_state(assignment_id):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -599,8 +820,8 @@ def update_assignment_state(assignment_id):
         detail = detail.strip()
 
     assignment_id = assignment_id.strip()
-    actor = "M1.8-C Assignment Lifecycle (development)"
-    actor_role = "SYSTEM"
+    actor = g.current_user["displayName"]
+    actor_role = g.current_user["role"]
     conn = None
     cur = None
 
@@ -614,9 +835,10 @@ def update_assignment_state(assignment_id):
             SELECT assignment_id, complaint_id, officer_id, state
             FROM assignments
             WHERE assignment_id = %s
+              AND officer_id = %s
             FOR UPDATE
             """,
-            (assignment_id,),
+            (assignment_id, g.current_user["officerId"]),
         )
         assignment = cur.fetchone()
         if not assignment:
@@ -771,6 +993,8 @@ def update_assignment_state(assignment_id):
 
 
 @app.route("/api/complaints/<cid>/allocate", methods=["POST"])
+@require_roles("ADMIN")
+@require_csrf
 def allocate_officer(cid):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -782,7 +1006,7 @@ def allocate_officer(cid):
 
     clean_id = cid.upper().replace("#", "").strip()
     officer_id = officer_id.strip()
-    actor = "M1.8-D Development Ward Superior"
+    actor = g.current_user["displayName"]
     conn = None
     cur = None
 
@@ -846,6 +1070,8 @@ def allocate_officer(cid):
             conn.close()
 
 @app.route("/api/scheduler/aging", methods=["POST"])
+@require_roles("ADMIN")
+@require_csrf
 def simulate_aging():
     try:
         conn = get_db_connection()
@@ -862,9 +1088,10 @@ def simulate_aging():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/scheduler/run", methods=["POST"])
+@require_roles("ADMIN")
+@require_csrf
 def run_scheduler():
-    data = request.json or {}
-    actor = data.get("actor", "Authority Console")
+    actor = g.current_user["displayName"]
 
     try:
         conn = get_db_connection()
@@ -1010,7 +1237,7 @@ def run_scheduler():
             )
         cur.execute(
             "CALL public.sp_allocate_officer(%s, %s, %s)",
-            (selected_id, selected_officer_id, "M1.8-D C++ Scheduler"),
+            (selected_id, selected_officer_id, actor),
         )
         cur.execute("SELECT * FROM complaints WHERE complaint_id = %s", (selected_id,))
         updated = cur.fetchone()
@@ -1048,6 +1275,7 @@ def run_scheduler():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route("/api/scheduler/mlq", methods=["GET"])
+@require_roles("ADMIN")
 def get_mlq():
     try:
         conn = get_db_connection()
@@ -1061,6 +1289,7 @@ def get_mlq():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/audit", methods=["GET"])
+@require_roles("ADMIN")
 def get_audit():
     complaint_id = request.args.get("complaintId")
     query = """SELECT history_id as id, complaint_id as "complaintId", actor, role, action, 
@@ -1084,8 +1313,9 @@ def get_audit():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/notifications", methods=["GET"])
+@require_roles("ADMIN")
 def get_notifications():
-    role = request.args.get("role")
+    role = g.current_user["role"]
     query = """SELECT notification_id as id, target_role as "targetRole", complaint_id as "complaintId", 
                       message, is_read as read, TO_CHAR(created_at, 'Mon DD, YYYY HH12:MI AM') as timestamp 
                FROM notifications"""
@@ -1106,6 +1336,7 @@ def get_notifications():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/analytics/overview", methods=["GET"])
+@require_roles("ADMIN")
 def get_analytics():
     try:
         conn = get_db_connection()
@@ -1133,4 +1364,4 @@ if __name__ == "__main__":
     print(f" Running on: http://localhost:{PORT}")
     print(f" Health check: http://localhost:{PORT}/api/health")
     print(f"========================================================")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    app.run(host="127.0.0.1", port=PORT, debug=False)

@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const session = window.CivicAuth && CivicAuth.requireRole(['ADMIN']);
+document.addEventListener('DOMContentLoaded', async () => {
+    const session = window.CivicAuth && await CivicAuth.requireRole(['ADMIN']);
     if (!session) return;
     const navItems = document.querySelectorAll('.admin-nav-item');
     const views = document.querySelectorAll('.admin-view');

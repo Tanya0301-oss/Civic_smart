@@ -35,3 +35,23 @@ Desktop.ini
 # Editor directories
 .vscode/
 .idea/
+
+# Additional local configuration and generated files
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!.env.example
+*.pyo
+*.pyd
+.Python
+.mypy_cache/
+.ruff_cache/
+venv/
+ENV/
+logs/
+tmp/
+temp/
+*.dump
+*.backup
+*.bak
