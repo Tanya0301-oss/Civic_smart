@@ -1,6 +1,6 @@
 ﻿/* Ward names from Nagar Nigam Dehradun: https://nndehradun.uk.gov.in/ward-details-parsiman/ */
 /* Suggested addresses are demo locality labels, not parcel or boundary validation. */
-const DehradunLocations = (() => {
+window.DehradunLocations = (() => {
     const JURISDICTION = 'Dehradun Municipal Corporation';
     const wards = [
         { ward: 'Ward 1 - Malshi', tehsil: 'Dehradun Sadar', addresses: ['Malshi, Dehradun'] },

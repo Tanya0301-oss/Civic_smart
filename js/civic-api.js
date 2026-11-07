@@ -1,243 +1,280 @@
 /**
- * Civic Smart - PostgreSQL Backend Integration & Sync Bridge
- * Transparently hooks into CivicData to synchronize state with the PostgreSQL DBMS.
- * Works seamlessly in both live database mode and offline localStorage demo mode.
+ * Civic Smart - Authenticated PostgreSQL API Client
+ *
+ * PostgreSQL is the authoritative application datastore.
+ * All protected API calls are routed through CivicAuth.
+ * No local-first writes, data mirroring or automatic data synchronization.
  */
 
 const CivicAPI = (() => {
-    const API_BASE = 'http://localhost:5000/api';
-    let isConnected = false;
-    let checkedConnection = false;
+    const API_BASE = "/api";
+    const HEALTH_TIMEOUT_MS = 3000;
 
-    /**
-     * Test connection to PostgreSQL REST API backend
-     */
-    async function checkHealth() {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1500);
-            const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
-            clearTimeout(timeoutId);
+    let healthState = {
+        checked: false,
+        online: false,
+        databaseConnected: false,
+        message: "Connection not checked",
+        checkedAt: null
+    };
 
-            if (res.ok) {
-                const data = await res.json();
-                isConnected = data.database && data.database.connected;
-                checkedConnection = true;
-                if (!isConnected) updateBadge(false);
-                return { online: true, databaseConnected: isConnected, info: data };
-            }
-        } catch (e) {
-            isConnected = false;
-            checkedConnection = true;
-            updateBadge(false);
-        }
-        return { online: false, databaseConnected: false };
-    }
-
-    /**
-     * Pull live PostgreSQL records into local state
-     */
-    async function syncFromPostgres() {
-        if (!isConnected) return false;
-        try {
-            const [complaintsRes, officersRes, assignRes, auditRes] = await Promise.all([
-                fetch(`${API_BASE}/complaints`),
-                fetch(`${API_BASE}/officers`),
-                fetch(`${API_BASE}/assignments`),
-                fetch(`${API_BASE}/audit`)
-            ]);
-            if (![complaintsRes, officersRes, assignRes, auditRes].every(response => response.ok)) {
-                throw new Error('Live datastore sync returned an unsuccessful response.');
-            }
-            const [complaints, officers, assignments, audit] = await Promise.all([
-                complaintsRes.json(), officersRes.json(), assignRes.json(), auditRes.json()
-            ]);
-            // Replace all mirrors together, including when PostgreSQL tables are empty.
-            localStorage.setItem('civics_smart_records_v2', JSON.stringify(complaints || []));
-            localStorage.setItem('civics_smart_officers_v2', JSON.stringify(officers || []));
-            localStorage.setItem('civics_smart_assignments_v2', JSON.stringify(assignments || []));
-            localStorage.setItem('civics_smart_audit_v2', JSON.stringify(audit || []));
-            updateBadge(true);
-
-            console.log('[CivicAPI] Live PostgreSQL records synced into local store.');
-            window.dispatchEvent(new CustomEvent('civic:data-synced', { detail: { count: complaints ? complaints.length : 0 } }));
-            return true;
-        } catch (err) {
-            console.warn('[CivicAPI] Sync failed:', err.message);
-            updateBadge(false);
-            return false;
-        }
-    }
-
-    /**
-     * Asynchronously mirror local complaint creation to PostgreSQL
-     */
-    async function mirrorCreateComplaint(complaint) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(complaint)
-            });
-            console.log('[CivicAPI] Complaint mirrored to PostgreSQL:', complaint.id);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror complaint creation:', err.message);
-        }
-    }
-
-    /**
-     * Asynchronously mirror status update to PostgreSQL
-     */
-    async function mirrorUpdateStatus(id, status, actor) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints/${encodeURIComponent(id)}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status, actor })
-            });
-            console.log('[CivicAPI] Status update mirrored to PostgreSQL:', id, status);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror status update:', err.message);
-        }
-    }
-
-    /**
-     * Asynchronously mirror officer allocation to PostgreSQL
-     */
-    async function mirrorAllocateOfficer(complaintId, actor) {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/complaints/${encodeURIComponent(complaintId)}/allocate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ actor })
-            });
-            console.log('[CivicAPI] Allocation mirrored to PostgreSQL:', complaintId);
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to mirror allocation:', err.message);
-        }
-    }
-
-    /**
-     * Asynchronously mirror aging simulation to PostgreSQL
-     */
-    async function mirrorSimulateAging() {
-        if (!isConnected) return;
-        try {
-            await fetch(`${API_BASE}/scheduler/aging`, { method: 'POST' });
-            console.log('[CivicAPI] Aging simulation executed in PostgreSQL.');
-        } catch (err) {
-            console.warn('[CivicAPI] Failed to trigger PostgreSQL aging:', err.message);
-        }
-    }
-
-    /**
-     * Run the integrated C++ scheduler through Flask/PostgreSQL.
-     */
-    async function runScheduler(actor = 'Authority Console') {
-        if (!isConnected) {
-            return { ok: false, offline: true, message: 'PostgreSQL backend is offline.' };
-        }
-
-        const res = await fetch(`${API_BASE}/scheduler/run`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ actor })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            return {
-                ok: false,
-                status: res.status,
-                ...data,
-                message: data.message || data.error || 'Scheduler request failed.'
-            };
-        }
-        await syncFromPostgres();
-        return data;
-    }
-
-    /**
-     * Decorate CivicData methods to achieve transparent dual-write
-     */
-    function hookCivicData() {
-        if (typeof CivicData === 'undefined') return;
-
-        const origCreate = CivicData.createComplaint;
-        CivicData.createComplaint = function (payload) {
-            const created = origCreate.call(CivicData, payload);
-            mirrorCreateComplaint(created);
-            return created;
-        };
-
-        const origStatus = CivicData.updateComplaintStatus;
-        CivicData.updateComplaintStatus = function (id, status, actor) {
-            const updated = origStatus.call(CivicData, id, status, actor);
-            mirrorUpdateStatus(id, status, actor);
-            return updated;
-        };
-
-        const origAllocate = CivicData.allocateOfficer;
-        CivicData.allocateOfficer = function (complaintId, actor) {
-            const result = origAllocate.call(CivicData, complaintId, actor);
-            mirrorAllocateOfficer(complaintId, actor);
-            return result;
-        };
-
-        const origAging = CivicData.simulateAging;
-        CivicData.simulateAging = function () {
-            const result = origAging.call(CivicData);
-            mirrorSimulateAging();
-            return result;
-        };
-    }
-
-    /**
-     * Update UI sync badges in the DOM
-     */
-    function updateBadge(connected, dbName) {
-        const liveBadges = document.querySelectorAll('.live-badge');
-        liveBadges.forEach(badge => {
+    function updateBadge(connected) {
+        document.querySelectorAll(".live-badge").forEach(badge => {
             if (connected) {
-                badge.style.background = '#E8F5E9';
-                badge.style.borderColor = '#A5D6A7';
-                badge.style.color = '#1B5E20';
+                badge.style.background = "#E8F5E9";
+                badge.style.borderColor = "#A5D6A7";
+                badge.style.color = "#1B5E20";
                 badge.innerHTML = `
-                    <span class="live-dot" style="background: #2E7D32; box-shadow: 0 0 0 3px rgba(46,125,50,0.25);"></span>
-                    <span>PostgreSQL Live: ${dbName || 'civic_smartdb'}</span>
+                    <span class="live-dot"
+                        style="background:#2E7D32;box-shadow:0 0 0 3px rgba(46,125,50,.25);">
+                    </span>
+                    <span>PostgreSQL Connected</span>
                 `;
-                badge.title = 'Connected to PostgreSQL DBMS backend at http://localhost:5000.';
+                badge.title = "Flask API and PostgreSQL health check succeeded.";
             } else {
-                badge.style.background = '#FFF3E0';
-                badge.style.borderColor = '#FFE0B2';
-                badge.style.color = '#B78103';
+                badge.style.background = "#FFF3E0";
+                badge.style.borderColor = "#FFE0B2";
+                badge.style.color = "#B78103";
                 badge.innerHTML = `
-                    <span class="live-dot" style="background: #F57C00; box-shadow: 0 0 0 3px rgba(245,124,0,0.2);"></span>
-                    <span>Offline Demo (localStorage)</span>
+                    <span class="live-dot"
+                        style="background:#F57C00;box-shadow:0 0 0 3px rgba(245,124,0,.2);">
+                    </span>
+                    <span>Database Unavailable</span>
                 `;
-                badge.title = 'PostgreSQL backend not detected on http://localhost:5000. Running in standalone browser mode.';
+                badge.title = "The PostgreSQL health check failed.";
             }
         });
     }
 
-    // Auto-initialize on DOM ready
-    document.addEventListener('DOMContentLoaded', () => {
-        hookCivicData();
-        checkHealth().then(status => {
-            if (status.databaseConnected) {
-                syncFromPostgres();
+    async function checkHealth() {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(
+            () => controller.abort(),
+            HEALTH_TIMEOUT_MS
+        );
+
+        try {
+            const response = await fetch(`${API_BASE}/health`, {
+                method: "GET",
+                credentials: "same-origin",
+                cache: "no-store",
+                signal: controller.signal
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            const connected =
+                response.ok &&
+                data.status === "healthy" &&
+                data.databaseConnected === true;
+
+            healthState = {
+                checked: true,
+                online: response.ok,
+                databaseConnected: connected,
+                message: connected
+                    ? "Flask API and PostgreSQL are healthy."
+                    : (data.error || data.status || "Database unavailable"),
+                checkedAt: new Date().toISOString()
+            };
+
+            updateBadge(connected);
+
+            return {
+                ...healthState,
+                info: data
+            };
+        } catch (error) {
+            healthState = {
+                checked: true,
+                online: false,
+                databaseConnected: false,
+                message: error.name === "AbortError"
+                    ? "Health check timed out."
+                    : error.message,
+                checkedAt: new Date().toISOString()
+            };
+
+            updateBadge(false);
+
+            return { ...healthState };
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
+    }
+
+    function getHealthState() {
+        return { ...healthState };
+    }
+
+    function buildQuery(params = {}) {
+        const query = new URLSearchParams();
+
+        Object.entries(params).forEach(([key, value]) => {
+            if (
+                value !== undefined &&
+                value !== null &&
+                String(value).trim() !== ""
+            ) {
+                query.set(key, String(value));
             }
         });
-    });
+
+        const result = query.toString();
+        return result ? `?${result}` : "";
+    }
+
+    async function request(path, options = {}) {
+        if (typeof path !== "string" || !path.startsWith("/") ||
+            path.startsWith("//")) {
+            throw new Error("Invalid API path.");
+        }
+
+        if (
+            !window.CivicAuth ||
+            typeof window.CivicAuth.apiRequest !== "function"
+        ) {
+            throw new Error(
+                "Authentication API is unavailable. Check the auth.js script."
+            );
+        }
+
+        return window.CivicAuth.apiRequest(path, {
+            ...options,
+            cache: "no-store"
+        });
+    }
+
+    async function getComplaints(filters = {}) {
+        return request(`/complaints${buildQuery(filters)}`);
+    }
+
+    async function getComplaint(complaintId) {
+        if (!complaintId) {
+            throw new Error("Complaint ID is required.");
+        }
+
+        return request(
+            `/complaints/${encodeURIComponent(complaintId)}`
+        );
+    }
+
+    async function createComplaint(payload) {
+        if (!payload || typeof payload !== "object") {
+            throw new Error("A valid complaint payload is required.");
+        }
+
+        return request("/complaints", {
+            method: "POST",
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async function getAssignments(filters = {}) {
+        return request(`/assignments${buildQuery(filters)}`);
+    }
+
+    async function updateAssignmentState(assignmentId, payload) {
+        if (!assignmentId || !payload || typeof payload !== "object") {
+            throw new Error("Assignment ID and valid payload are required.");
+        }
+
+        return request(
+            `/assignments/${encodeURIComponent(assignmentId)}/state`,
+            {
+                method: "PATCH",
+                body: JSON.stringify(payload)
+            }
+        );
+    }
+
+    async function getOfficers() {
+        return request("/officers");
+    }
+
+    async function getAnalytics() {
+        return request("/analytics/overview");
+    }
+
+    async function getMLQ() {
+        return request("/scheduler/mlq");
+    }
+
+    async function getAudit(filters = {}) {
+        return request(`/audit${buildQuery(filters)}`);
+    }
+
+    async function getNotifications() {
+        return request("/notifications");
+    }
+
+    async function allocateOfficer(complaintId, officerId) {
+        if (!complaintId || !officerId) {
+            throw new Error("Complaint ID and officer ID are required.");
+        }
+
+        return request(
+            `/complaints/${encodeURIComponent(complaintId)}/allocate`,
+            {
+                method: "POST",
+                body: JSON.stringify({ officerId })
+            }
+        );
+    }
+
+    async function simulateAging() {
+        return request("/scheduler/aging", {
+            method: "POST",
+            body: JSON.stringify({})
+        });
+    }
+
+    /**
+     * Scheduler execution remains deliberately disabled in M2-A.
+     * It will be connected to the Admin dashboard in M2-D.
+     */
+    async function runScheduler() {
+        throw new Error(
+            "Scheduler execution is temporarily disabled during M2-A. " +
+            "It will be enabled after the Admin dashboard migration in M2-D."
+        );
+    }
+
+    function isDatabaseConnected() {
+        return healthState.databaseConnected;
+    }
+
+    function initialize() {
+        checkHealth();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initialize, {
+            once: true
+        });
+    } else {
+        initialize();
+    }
 
     return {
+        API_BASE,
+        request,
         checkHealth,
-        syncFromPostgres,
-        runScheduler,
-        isDatabaseConnected: () => isConnected,
-        API_BASE
+        getHealthState,
+        isDatabaseConnected,
+        getComplaints,
+        getComplaint,
+        createComplaint,
+        getAssignments,
+        updateAssignmentState,
+        getOfficers,
+        getAnalytics,
+        getMLQ,
+        getAudit,
+        getNotifications,
+        allocateOfficer,
+        simulateAging,
+        runScheduler
     };
 })();
 

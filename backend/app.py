@@ -447,7 +447,7 @@ def get_complaints():
     ward = request.args.get("ward")
     search = request.args.get("search")
 
-    query = "SELECT * FROM complaints WHERE 1=1"
+    query = "SELECT * FROM complaints AS c WHERE 1=1"
     params = []
     scope, scope_params = complaint_scope_sql(g.current_user)
     query += f" AND ({scope})"
@@ -481,7 +481,12 @@ def get_complaints():
         rows = cur.fetchall()
         cur.close()
         conn.close()
-        return jsonify([map_complaint(r) for r in rows])
+        complaints = [map_complaint(row) for row in rows]
+        if g.current_user["role"] == "CITIZEN":
+            for complaint in complaints:
+                complaint.pop("citizenId", None)
+                complaint.pop("assignedOfficerId", None)
+        return jsonify(complaints)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -507,10 +512,42 @@ def get_complaint(cid):
 
         officer = None
         if complaint["assignedOfficerId"]:
-            cur.execute("SELECT * FROM authorities WHERE officer_id = %s", (complaint["assignedOfficerId"],))
-            officer = cur.fetchone()
+            cur.execute(
+                """
+                SELECT officer_id, name, role, department
+                FROM authorities
+                WHERE officer_id = %s
+                """,
+                (complaint["assignedOfficerId"],)
+            )
+            officer_row = cur.fetchone()
+            if officer_row:
+                officer = {
+                    "id": officer_row["officer_id"],
+                    "name": officer_row["name"],
+                    "role": officer_row["role"],
+                    "department": officer_row["department"],
+                }
 
-        cur.execute("SELECT * FROM assignments WHERE complaint_id = %s ORDER BY created_at DESC LIMIT 1", (clean_id,))
+        cur.execute(
+            """
+            SELECT
+                assignment_id,
+                complaint_id,
+                officer_id,
+                state,
+                deadline,
+                rejection_reason,
+                blocker,
+                completion_note,
+                created_at
+            FROM assignments
+            WHERE complaint_id = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (clean_id,)
+        )
         assignment = cur.fetchone()
 
         cur.execute(
@@ -524,10 +561,20 @@ def get_complaint(cid):
 
         cur.close()
         conn.close()
+        if g.current_user["role"] == "CITIZEN":
+            complaint.pop("citizenId", None)
+            complaint.pop("assignedOfficerId", None)
+            assignment_response = (
+                {"state": assignment["state"]}
+                if assignment else None
+            )
+        else:
+            assignment_response = dict(assignment) if assignment else None
+
         return jsonify({
             "complaint": complaint,
             "officer": officer,
-            "assignment": assignment,
+            "assignment": assignment_response,
             "timeline": timeline
         })
     except Exception as e:

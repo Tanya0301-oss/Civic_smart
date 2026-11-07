@@ -394,14 +394,14 @@
                 <div class="form-group">
                     <label class="form-label">Photographic Evidence</label>
                     <div class="file-dropzone" id="dropzone">
-                        <input type="file" id="photoInput" name="photo" accept="image/*" aria-label="Upload photo proof">
+                        <input type="file" id="photoInput" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" aria-label="Upload photo proof">
                         <svg class="file-dropzone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                             <circle cx="8.5" cy="8.5" r="1.5"/>
                             <polyline points="21 15 16 10 5 21"/>
                         </svg>
                         <p class="file-dropzone__text">Drag and drop site photo here, or <span>browse files</span></p>
-                        <span class="form-hint">JPG, PNG or WEBP up to 10MB</span>
+                        <span class="form-hint">JPG, PNG or WEBP up to 1MB</span>
                     </div>
                     <div class="file-dropzone__preview" id="photoPreview">
                         <img id="previewImage" src="" alt="Selected civic issue proof">
@@ -513,9 +513,9 @@
     </div><!-- End .page-wrapper -->
 
     <!-- Scripts -->
+    <script src="js/auth.js"></script>
     <script src="js/nav.js"></script>
     <script src="js/dehradun-locations.js"></script>
-    <script src="js/civic-data.js"></script>
     <script src="js/civic-api.js"></script>
     <script src="js/report.js"></script>
 </body>

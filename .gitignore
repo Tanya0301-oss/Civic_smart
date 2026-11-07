@@ -55,3 +55,8 @@ temp/
 *.dump
 *.backup
 *.bak
+
+# Phase III local authentication test scripts
+backend/phase3_m2b_temp_citizen.py
+backend/phase3_temp_auth.py
+backend/verify_auth_rollback.py
